@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/screens/dashboard.dart';
+import 'package:alkozon/screens/forgot_password_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -78,11 +79,10 @@ class LoginScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: () {},
-                    child: const Text("Aktywuj konto", style: TextStyle(color: Colors.blueAccent)),
-                  ),
-                  TextButton(
-                    onPressed: () {},
+                    onPressed: () {Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ForgotPassword()),
+                    );},
                     child: const Text("Zapomniałeś hasła?", style: TextStyle(color: Colors.blueAccent)),
                   ),
                 ],

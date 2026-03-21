@@ -20,6 +20,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
         return DefaultTabController(
           length: 2,
           child: Scaffold(
+            backgroundColor: Colors.grey.shade50,
             appBar: AppBar(
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
@@ -31,14 +32,19 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
               ),
               backgroundColor: Colors.blueAccent.withOpacity(0.15),
               elevation: 0,
+              centerTitle: false,
               bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(74.0),
+                preferredSize: const Size.fromHeight(2.0),
                 child: Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.blueAccent, width: 2.0),
-                    ),
-                  ),
+                  color: Colors.blueAccent.withOpacity(0.5),
+                  height: 2.0,
+                ),
+              ),
+            ),
+            body: Column(
+              children: [
+                Container(
+                  color: Colors.white,
                   child: const TabBar(
                     labelColor: Colors.blueAccent,
                     unselectedLabelColor: Color(0xFF64748B),
@@ -51,12 +57,14 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
                     ],
                   ),
                 ),
-              ),
-            ),
-            body: TabBarView(
-              children: [
-                _buildTimerTab(),
-                _buildHistoryTab(),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildTimerTab(),
+                      _buildHistoryTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -72,14 +80,23 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
         if (timerService.startTime != null)
           Text(
             "Rozpoczęto: ${timerService.formatDateTime(timerService.startTime!)}",
-            style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              color: Colors.blueAccent,
+              fontWeight: FontWeight.w500,
+              fontSize: 16,
+            ),
           ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 15),
         Text(
           timerService.formatTime(timerService.seconds),
-          style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, letterSpacing: 2),
+          style: const TextStyle(
+            fontSize: 64,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            color: Color(0xFF1E293B),
+          ),
         ),
-        const SizedBox(height: 50),
+        const SizedBox(height: 60),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -89,7 +106,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
               color: Colors.blueAccent,
               onTap: () => timerService.toggleTimer(),
             ),
-            const SizedBox(width: 40),
+            const SizedBox(width: 45),
             _buildActionButton(
               icon: Icons.stop,
               label: "ZAKOŃCZ",
@@ -97,7 +114,10 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
               onTap: () {
                 timerService.stopAndSaveWork();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sesja została zapisana!')),
+                  const SnackBar(
+                    content: Text('Sesja została zapisana!'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               },
             ),
@@ -115,20 +135,29 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
   }) {
     return Column(
       children: [
-        GestureDetector(
+        InkWell(
           onTap: onTap,
+          borderRadius: BorderRadius.circular(50),
           child: Container(
-            width: 80,
-            height: 80,
+            width: 85,
+            height: 85,
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
               shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.2), width: 1),
             ),
-            child: Icon(icon, size: 36, color: color),
+            child: Icon(icon, size: 38, color: color),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 10),
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: color,
+            fontSize: 13,
+          ),
+        ),
       ],
     );
   }
@@ -137,7 +166,19 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
     final history = timerService.history;
 
     if (history.isEmpty) {
-      return const Center(child: Text("Brak zapisanych logów"));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              "Brak zapisanych logów",
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
@@ -146,11 +187,13 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
       itemBuilder: (context, index) {
         final item = history[index];
         return Card(
+          elevation: 0,
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: Colors.grey.shade200),
           ),
+          color: Colors.white,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -159,26 +202,45 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("ŁĄCZNY CZAS",
-                        style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
-                    Text(item['duration'] ?? "00:00:00",
-                        style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                    const Text(
+                      "ŁĄCZNY CZAS",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      item['duration'] ?? "00:00:00",
+                      style: const TextStyle(
+                        color: Colors.blueAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ],
                 ),
-                const Divider(height: 20),
+                const Divider(height: 24, thickness: 1),
                 Row(
                   children: [
-                    const Icon(Icons.login, size: 16, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text("Start: ${item['start']}"),
+                    const Icon(Icons.login, size: 18, color: Colors.green),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Start: ${item['start']}",
+                      style: const TextStyle(color: Color(0xFF1E293B)),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.logout, size: 16, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Text("Koniec: ${item['end']}"),
+                    const Icon(Icons.logout, size: 18, color: Colors.redAccent),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Koniec: ${item['end']}",
+                      style: const TextStyle(color: Color(0xFF1E293B)),
+                    ),
                   ],
                 ),
               ],

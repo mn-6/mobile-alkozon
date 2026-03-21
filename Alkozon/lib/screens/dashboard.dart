@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'work_time_screen.dart';
 import 'inventory_screen.dart';
+import 'order_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -75,7 +77,12 @@ class DashboardScreen extends StatelessWidget {
                     title: "Aktywne zamówienia",
                     icon: Icons.shopping_cart_outlined,
                     color: Colors.greenAccent,
-                    onPressed: () => print("Zamówienia"),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const OrdersScreen()),
+                      );
+                    },
                   ),
 
                   _buildMenuCard(
@@ -83,7 +90,12 @@ class DashboardScreen extends StatelessWidget {
                     title: "Twój profil",
                     icon: Icons.person_outline,
                     color: Colors.purpleAccent,
-                    onPressed: () => print("Profil"),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                      );
+                    },
                   ),
                 ],
               ),
