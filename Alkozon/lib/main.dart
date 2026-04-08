@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/screens/dashboard.dart';
 import 'package:alkozon/screens/forgot_password_screen.dart';
+import 'services/security_service.dart'; // IMPORT Twojego nowego serwisu
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await SecurityService.checkSecurity();
+
   runApp(const MyApp());
 }
 
@@ -53,50 +58,49 @@ class LoginScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                 ),
               ),
-
               const Center(
                 child: Text(
                   "Zaloguj się do swojego panelu",
                   style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                 ),
               ),
-
               const SizedBox(height: 24),
               _buildLabel("Email"),
               TextField(
                 decoration: _inputDecoration("Wpisz swój email", Icons.mail_outline),
               ),
               const SizedBox(height: 20),
-
               _buildLabel("Hasło"),
               TextField(
                 obscureText: true,
                 decoration: _inputDecoration("••••••••", Icons.lock_outline),
               ),
               const SizedBox(height: 12),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: () {Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ForgotPassword()),
-                    );},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ForgotPassword()),
+                      );
+                    },
                     child: const Text("Zapomniałeś hasła?", style: TextStyle(color: Colors.blueAccent)),
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                  );},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E293B),
                     foregroundColor: Colors.white,
@@ -106,7 +110,6 @@ class LoginScreen extends StatelessWidget {
                   child: const Text("Zaloguj się", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
-
               const SizedBox(height: 40),
             ],
           ),

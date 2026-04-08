@@ -25,7 +25,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
       ),
     );
 
-    // Jeśli odebrano nowy status, aktualizujemy listę
     if (result != null && result is String) {
       setState(() {
         _orders[index]['status'] = result;
