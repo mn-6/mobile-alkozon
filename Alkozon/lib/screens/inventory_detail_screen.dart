@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
-class InventoryDetailScreen extends StatelessWidget {
+import '../services/inventory_service.dart';
 
-  final Map<String, dynamic> item;
+class InventoryDetailScreen extends StatelessWidget {
+  final InventoryItem item;
 
   const InventoryDetailScreen({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final bool isLowStock = item['current'] < item['min'];
+    final Color accentColor = item.isProduct
+        ? Colors.orangeAccent
+        : Colors.teal;
+    final IconData icon = item.isProduct
+        ? Icons.inventory_2_outlined
+        : Icons.science_outlined;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -20,17 +26,17 @@ class InventoryDetailScreen extends StatelessWidget {
           },
         ),
         title: Text(
-          item['name'],
-          style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+          item.name,
+          style: const TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.orangeAccent.withOpacity(0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            color: Colors.orangeAccent,
-            height: 2.0,
-          ),
+          child: Container(color: Colors.orangeAccent, height: 2.0),
         ),
       ),
       body: Padding(
@@ -38,20 +44,14 @@ class InventoryDetailScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                'https://picsum.photos/seed/${item['imgSeed']}/300/300',
-                width: 160,
-                height: 160,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 160,
-                  height: 160,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 40),
-                ),
+            Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
               ),
+              child: Icon(icon, size: 64, color: accentColor),
             ),
             const SizedBox(width: 24),
 
@@ -61,16 +61,16 @@ class InventoryDetailScreen extends StatelessWidget {
                 children: [
                   const SizedBox(height: 8),
                   Text(
-                    "Stan aktualny - ${item['current']}",
-                    style: TextStyle(
+                    'Stan aktualny - ${item.quantityLabel}',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: isLowStock ? Colors.redAccent : Colors.green,
+                      color: Color(0xFF0F766E),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    "Min - ${item['min']}",
+                    'Typ - ${item.isProduct ? 'Produkt' : 'Surowiec'}',
                     style: const TextStyle(
                       fontSize: 16,
                       color: Color(0xFF64748B),
@@ -79,7 +79,7 @@ class InventoryDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "Max - ${item['max']}",
+                    '${item.detailLabel} - ${item.detailValue}',
                     style: const TextStyle(
                       fontSize: 16,
                       color: Color(0xFF64748B),

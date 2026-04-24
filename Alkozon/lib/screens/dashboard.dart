@@ -1,11 +1,35 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import 'work_time_screen.dart';
 import 'inventory_screen.dart';
 import 'order_screen.dart';
 import 'profile_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final AuthService _authService = AuthService();
+  String _userEmail = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserEmail();
+  }
+
+  Future<void> _loadUserEmail() async {
+    final email = await _authService.getCurrentUserEmail();
+    if (mounted) {
+      setState(() {
+        _userEmail = email ?? '';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,11 +40,17 @@ class DashboardScreen extends StatelessWidget {
         centerTitle: false,
         title: const Text(
           "Panel główny",
-          style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: Color(0xFF64748B)),
+            icon: const Icon(
+              Icons.notifications_none,
+              color: Color(0xFF64748B),
+            ),
             onPressed: () {},
           ),
         ],
@@ -30,9 +60,13 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Dzień dobry, *jakiś pracownik*!",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+            Text(
+              "Dzień dobry, $_userEmail!",
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1E293B),
+              ),
             ),
             const Text(
               "Wybierz moduł",
@@ -54,7 +88,9 @@ class DashboardScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const WorkTimeScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const WorkTimeScreen(),
+                        ),
                       );
                     },
                   ),
@@ -67,7 +103,9 @@ class DashboardScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const InventoryScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const InventoryScreen(),
+                        ),
                       );
                     },
                   ),
@@ -80,7 +118,9 @@ class DashboardScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const OrdersScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const OrdersScreen(),
+                        ),
                       );
                     },
                   ),
@@ -93,7 +133,9 @@ class DashboardScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
                       );
                     },
                   ),
@@ -107,25 +149,26 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildMenuCard(
-      BuildContext context, {
-        required String title,
-        required IconData icon,
-        required Color color,
-        required VoidCallback onPressed,
-      }) {
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
     return ElevatedButton(
       onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-      ).copyWith(
-        overlayColor: WidgetStateProperty.all(color.withOpacity(0.05)),
-      ),
+      style:
+          ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+          ).copyWith(
+            overlayColor: WidgetStateProperty.all(color.withOpacity(0.05)),
+          ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -141,9 +184,10 @@ class DashboardScreen extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1E293B)),
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1E293B),
+            ),
           ),
         ],
       ),

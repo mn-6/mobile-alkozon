@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import 'work_time_service.dart';
 
 class WorkTimeScreen extends StatefulWidget {
@@ -10,13 +11,30 @@ class WorkTimeScreen extends StatefulWidget {
   State<WorkTimeScreen> createState() => _WorkTimeScreenState();
 }
 
-class _WorkTimeScreenState extends State<WorkTimeScreen> {
+class _WorkTimeScreenState extends State<WorkTimeScreen>
+    with WidgetsBindingObserver {
+  bool _isProcessingScan = false;
   final WorkTimerService timerService = WorkTimerService();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _requestPermissions();
+    timerService.refreshFromBackend();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      timerService.refreshFromBackend();
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -42,8 +60,8 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
               title: const Text(
                 "Monitor Pracy QR",
                 style: TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontWeight: FontWeight.bold
+                  color: Color(0xFF1E293B),
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               backgroundColor: Colors.blueAccent.withOpacity(0.15),
@@ -67,10 +85,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
                 ),
                 Expanded(
                   child: TabBarView(
-                    children: [
-                      _buildTimerTab(),
-                      _buildHistoryTab(),
-                    ],
+                    children: [_buildTimerTab(), _buildHistoryTab()],
                   ),
                 ),
               ],
@@ -163,14 +178,27 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Skanowanie kodu QR", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+                  const Text(
+                    "Skanowanie kodu QR",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
                 ],
               ),
             ),
@@ -178,21 +206,39 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: MobileScanner(
-                  onDetect: (capture) {
+                  onDetect: (capture) async {
+                    if (_isProcessingScan) return;
+
                     final List<Barcode> barcodes = capture.barcodes;
                     for (final barcode in barcodes) {
                       final String? code = barcode.rawValue;
                       if (code != null) {
-                        timerService.processQrCode(code);
+                        setState(() {
+                          _isProcessingScan = true;
+                        });
+
+                        final result = await timerService.processQrCode(code);
+                        if (!mounted) return;
+
                         Navigator.pop(context);
 
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Kod rozpoznany pomyślnie'),
+                          SnackBar(
+                            content: Text(result.message),
                             duration: Duration(seconds: 1),
                             behavior: SnackBarBehavior.floating,
+                            backgroundColor: result.success
+                                ? Colors.green.shade700
+                                : Colors.redAccent,
                           ),
                         );
+
+                        if (mounted) {
+                          setState(() {
+                            _isProcessingScan = false;
+                          });
+                        }
+
                         break;
                       }
                     }
@@ -249,48 +295,112 @@ class _WorkTimeScreenState extends State<WorkTimeScreen> {
   Widget _buildHistoryTab() {
     final history = timerService.history;
 
-    if (history.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    if (timerService.isHistoryLoading && history.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (timerService.historyError != null && history.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: timerService.refreshHistoryFromBackend,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24.0),
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 120),
+            const Icon(Icons.cloud_off, size: 56, color: Color(0xFF94A3B8)),
             const SizedBox(height: 16),
-            const Text("Brak zapisanych logów", style: TextStyle(color: Colors.grey)),
+            Text(
+              timerService.historyError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: ElevatedButton(
+                onPressed: timerService.refreshHistoryFromBackend,
+                child: const Text('Odśwież logi'),
+              ),
+            ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      itemCount: history.length,
-      padding: const EdgeInsets.all(16),
-      itemBuilder: (context, index) {
-        final item = history[index];
-        return Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            title: Text(
-              "Łącznie: ${item['duration']}",
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
+    if (history.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: timerService.refreshHistoryFromBackend,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24.0),
+          children: [
+            const SizedBox(height: 120),
+            Icon(Icons.history, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              "Brak zapisanych logów",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text("Start: ${item['start']}", style: const TextStyle(fontSize: 13)),
-                Text("Koniec: ${item['end']}", style: const TextStyle(fontSize: 13)),
-              ],
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: timerService.refreshHistoryFromBackend,
+      child: ListView.builder(
+        itemCount: history.length,
+        padding: const EdgeInsets.all(16),
+        itemBuilder: (context, index) {
+          final item = history[index];
+          final start = item.clockInAt.toLocal();
+          final end = item.clockOutAt?.toLocal();
+          final durationSeconds = (end ?? DateTime.now())
+              .difference(start)
+              .inSeconds
+              .clamp(0, 365 * 24 * 3600);
+
+          return Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.shade200),
             ),
-          ),
-        );
-      },
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              title: Text(
+                end == null
+                    ? 'Sesja aktywna: ${timerService.formatTime(durationSeconds)}'
+                    : 'Łącznie: ${timerService.formatTime(durationSeconds)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: end == null ? Colors.green : Colors.blueAccent,
+                ),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  Text(
+                    'Start: ${timerService.formatDateTime(start)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  Text(
+                    end == null
+                        ? 'Koniec: w toku'
+                        : 'Koniec: ${timerService.formatDateTime(end)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

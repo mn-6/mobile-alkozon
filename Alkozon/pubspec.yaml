@@ -42,6 +42,7 @@ dependencies:
   safe_device: ^1.1.7
   package_info_plus: ^8.0.0
   screen_protector: ^1.1.0
+  dio: ^5.9.2
 
 dev_dependencies:
   flutter_test:

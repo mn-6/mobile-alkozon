@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
+
+import '../services/inventory_service.dart';
 import 'inventory_detail_screen.dart';
 
-class InventoryScreen extends StatelessWidget {
+class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
 
-  final List<Map<String, dynamic>> _inventoryItems = const [
-    {'name': 'Banan', 'current': 150, 'min': 50, 'max': 500, 'imgSeed': 'banan'},
-    {'name': 'Jabłko', 'current': 45, 'min': 100, 'max': 1000, 'imgSeed': 'jablko'},
-    {'name': 'Gruszka', 'current': 210, 'min': 100, 'max': 400, 'imgSeed': 'gruszka'},
-    {'name': 'Pomarańcza', 'current': 320, 'min': 150, 'max': 600, 'imgSeed': 'pomarancza'},
-    {'name': 'Arbuz', 'current': 12, 'min': 20, 'max': 80, 'imgSeed': 'arbuz'},
-    {'name': 'Kiwi', 'current': 540, 'min': 200, 'max': 800, 'imgSeed': 'kiwi'},
-    {'name': 'Truskawki', 'current': 80, 'min': 50, 'max': 150, 'imgSeed': 'truskawka'},
-    {'name': 'Maliny', 'current': 15, 'min': 30, 'max': 100, 'imgSeed': 'malina'},
-    {'name': 'Borówki', 'current': 15, 'min': 30, 'max': 100, 'imgSeed': 'borowka'},
-    {'name': 'Borówki2', 'current': 15, 'min': 30, 'max': 100, 'imgSeed': 'borowka2'},
-    {'name': 'Borówki3', 'current': 15, 'min': 30, 'max': 100, 'imgSeed': 'borowka3'},
-  ];
+  @override
+  State<InventoryScreen> createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen> {
+  final InventoryService _inventoryService = InventoryService();
+  late Future<InventoryOverview> _inventoryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _inventoryFuture = _inventoryService.getInventory();
+  }
+
+  Future<void> _reloadInventory() async {
+    final nextFuture = _inventoryService.getInventory();
+    setState(() {
+      _inventoryFuture = nextFuture;
+    });
+    await nextFuture;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,109 +41,236 @@ class InventoryScreen extends StatelessWidget {
         ),
         title: const Text(
           "Stany magazynowe",
-          style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.orangeAccent.withOpacity(0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            color: Colors.orangeAccent,
-            height: 2.0,
-          ),
+          child: Container(color: Colors.orangeAccent, height: 2.0),
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _inventoryItems.length,
-        itemBuilder: (context, index) {
-          final item = _inventoryItems[index];
-          final bool isLowStock = item['current'] < item['min'];
+      body: FutureBuilder<InventoryOverview>(
+        future: _inventoryFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => InventoryDetailScreen(item: item),
-                ),
-              );
-            },
-            child: Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 16.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFE2E8F0)),
+          if (snapshot.hasError) {
+            return RefreshIndicator(
+              onRefresh: _reloadInventory,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24.0),
+                children: [
+                  const SizedBox(height: 120),
+                  const Icon(
+                    Icons.inventory_2_outlined,
+                    size: 48,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Nie udało się pobrać stanów magazynowych.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: _reloadInventory,
+                      child: const Text('Spróbuj ponownie'),
+                    ),
+                  ),
+                ],
               ),
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
+            );
+          }
+
+          final overview = snapshot.data!;
+          final items = overview.allItems;
+
+          if (items.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: _reloadInventory,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24.0),
+                children: const [
+                  SizedBox(height: 120),
+                  Icon(
+                    Icons.inventory_outlined,
+                    size: 56,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Brak pozycji w magazynie.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _reloadInventory,
+            child: ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: [
+                if (overview.products.isNotEmpty) ...[
+                  const _SectionHeader(title: 'Produkty'),
+                  const SizedBox(height: 12),
+                  ...overview.products.map(
+                    (item) => _InventoryCard(item: item),
+                  ),
+                ],
+                if (overview.rawMaterials.isNotEmpty) ...[
+                  if (overview.products.isNotEmpty) const SizedBox(height: 8),
+                  const _SectionHeader(title: 'Surowce'),
+                  const SizedBox(height: 12),
+                  ...overview.rawMaterials.map(
+                    (item) => _InventoryCard(item: item),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF1E293B),
+      ),
+    );
+  }
+}
+
+class _InventoryCard extends StatelessWidget {
+  const _InventoryCard({required this.item});
+
+  final InventoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accentColor = item.isProduct
+        ? Colors.orangeAccent
+        : Colors.teal;
+    final IconData icon = item.isProduct
+        ? Icons.inventory_2_outlined
+        : Icons.science_outlined;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InventoryDetailScreen(item: item),
+          ),
+        );
+      },
+      child: Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 16.0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: accentColor, size: 36),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        'https://picsum.photos/seed/${item['imgSeed']}/100/100',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 80,
-                          height: 80,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.image_not_supported, color: Colors.grey),
-                        ),
+                    Text(
+                      item.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
-                    const SizedBox(width: 16),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['name'],
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
-                            ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text(
+                          'Stan aktualny: ',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 14,
                           ),
-                          const SizedBox(height: 8),
-
-                          Row(
-                            children: [
-                              const Text(
-                                "Stan aktualny: ",
-                                style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
-                              ),
-                              Text(
-                                "${item['current']}",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: isLowStock ? Colors.redAccent : Colors.green,
-                                ),
-                              ),
-                            ],
+                        ),
+                        Text(
+                          item.quantityLabel,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F766E),
                           ),
-                          const SizedBox(height: 4),
-
-                          Text(
-                            "Min/Max:  ${item['min']} / ${item['max']}",
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.subtitle,
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
