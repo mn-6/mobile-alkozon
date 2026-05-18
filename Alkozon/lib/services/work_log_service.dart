@@ -42,7 +42,10 @@ class WorkLogService {
   WorkLogService({AuthService? authService})
     : _authService = authService ?? AuthService();
 
-  static const String _apiUrl = 'http://192.168.0.101:8080/api';
+  static const String _apiUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8080/api',
+  );
 
   final AuthService _authService;
   final Dio _dio = Dio(

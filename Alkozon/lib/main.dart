@@ -40,20 +40,26 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
+  late TextEditingController _codeController;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _infoMessage;
+  bool _requiresTwoFactor = false;
+  String? _challengeId;
 
   @override
   void initState() {
     super.initState();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
+    _codeController = TextEditingController();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -61,11 +67,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
 
     final result = await _authService.login(
       _emailController.text.trim(),
       _passwordController.text,
+      verificationCode: _requiresTwoFactor ? _codeController.text : null,
+      challengeId: _challengeId,
     );
 
     if (mounted) {
@@ -74,6 +83,14 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/dashboard');
         }
+      } else if (result['requires2fa'] == true) {
+        setState(() {
+          _requiresTwoFactor = true;
+          _challengeId = result['challengeId']?.toString();
+          _infoMessage =
+              result['message']?.toString() ??
+              'Wpisz kod 2FA wysłany na e-mail';
+        });
       } else {
         // Pokaż błąd
         setState(() {
@@ -144,6 +161,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               if (_errorMessage != null) const SizedBox(height: 16),
+              if (_infoMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    _infoMessage!,
+                    style: const TextStyle(color: Colors.blue, fontSize: 14),
+                  ),
+                ),
+              if (_infoMessage != null) const SizedBox(height: 16),
               _buildLabel("Email"),
               TextField(
                 controller: _emailController,
@@ -162,6 +193,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: true,
                 decoration: _inputDecoration("••••••••", Icons.lock_outline),
               ),
+              if (_requiresTwoFactor) ...[
+                const SizedBox(height: 20),
+                _buildLabel("Kod 2FA"),
+                TextField(
+                  controller: _codeController,
+                  enabled: !_isLoading,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration(
+                    "Wpisz kod z e-maila",
+                    Icons.verified_user_outlined,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -207,8 +251,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text(
-                          "Zaloguj się",
+                      : Text(
+                          _requiresTwoFactor ? "Zweryfikuj kod" : "Zaloguj się",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
