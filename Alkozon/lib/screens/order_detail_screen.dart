@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/order_service.dart';
+import 'order_navigation_map_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderData order;
@@ -27,7 +28,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool get _isFinalStatus =>
       widget.order.status == 'DELIVERED' || widget.order.status == 'CANCELLED';
 
-  bool get _canChangeStatus => !_isFinalStatus && _availableStatuses.length > 1;
+  bool get _isNavigationMode => widget.order.status == 'IN_DELIVERY';
+
+  bool get _canChangeStatus =>
+      !_isFinalStatus && !_isNavigationMode && _availableStatuses.length > 1;
 
   @override
   void initState() {
@@ -82,6 +86,48 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   String _formatUnitPrice(double amount) {
     return '${amount.toStringAsFixed(2)} PLN / szt.';
+  }
+
+  String _deliveryAddressForNavigation() {
+    final structured = widget.order.deliveryDetails;
+    if (structured != null) {
+      final parts = <String>[
+        if ((structured.streetAddress ?? '').trim().isNotEmpty)
+          structured.streetAddress!.trim(),
+        if ((structured.postalCode ?? '').trim().isNotEmpty)
+          structured.postalCode!.trim(),
+        if ((structured.city ?? '').trim().isNotEmpty) structured.city!.trim(),
+        if ((structured.country ?? '').trim().isNotEmpty)
+          structured.country!.trim(),
+      ];
+      if (parts.isNotEmpty) {
+        return parts.join(', ');
+      }
+    }
+    return widget.order.deliveryAddress?.trim() ?? '';
+  }
+
+  Future<void> _openNavigation() async {
+    final address = _deliveryAddressForNavigation();
+    if (address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Brak adresu do nawigacji.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OrderNavigationMapScreen(
+          address: address,
+          orderId: widget.order.id,
+        ),
+      ),
+    );
   }
 
   String _formatDateTime(DateTime value) {
@@ -294,7 +340,39 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            if (_canChangeStatus) ...[
+            if (_isNavigationMode) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: _openNavigation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.navigation, color: Colors.white),
+                  label: const Text(
+                    'Nawiguj',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Dla zamówień w dostawie statusu nie można już zmienić. Użyj nawigacji, aby dotrzeć pod adres.',
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ] else if (_canChangeStatus) ...[
               const Text(
                 'Zmień status zamówienia:',
                 style: TextStyle(

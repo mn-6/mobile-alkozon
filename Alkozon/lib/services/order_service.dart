@@ -191,7 +191,9 @@ class OrderService {
     return OrderData.fromJson(response.data as Map<String, dynamic>);
   }
 
-  Future<List<OrderData>> getMyDeliveryOrders() async {
+  Future<List<OrderData>> getMyDeliveryOrders({
+    bool onlyInDelivery = true,
+  }) async {
     final token = await _authService.getToken();
     if (token == null) {
       throw Exception('Brak tokenu logowania');
@@ -212,7 +214,7 @@ class OrderService {
       if (assignment.orderId <= 0) continue;
       try {
         final order = await getOrderById(assignment.orderId, token: token);
-        if (order.status == 'IN_DELIVERY') {
+        if (!onlyInDelivery || order.status == 'IN_DELIVERY') {
           orders.add(order);
         }
       } catch (_) {

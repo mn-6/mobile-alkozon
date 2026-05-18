@@ -33,15 +33,26 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Future<_OrdersViewData> _loadData() async {
     final allOrders = await _orderService.getAllOrders();
-    final deliveryOrders = await _orderService.getMyDeliveryOrders();
+    final assignedOrders = await _orderService.getMyDeliveryOrders(
+      onlyInDelivery: false,
+    );
 
     final active = allOrders.where(_isActive).toList();
-    final finished = allOrders.where(_isFinished).toList();
+    final deliveryOrders = assignedOrders.where(
+      (o) => o.status == 'IN_DELIVERY',
+    );
+
+    final finishedMap = <int, OrderData>{
+      for (final order in allOrders.where(_isFinished)) order.id: order,
+      for (final order in assignedOrders.where(_isFinished)) order.id: order,
+    };
+    final finished = finishedMap.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return _OrdersViewData(
       active: active,
       finished: finished,
-      delivery: deliveryOrders,
+      delivery: deliveryOrders.toList(),
     );
   }
 
