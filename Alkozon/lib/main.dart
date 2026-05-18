@@ -24,7 +24,10 @@ class MyApp extends StatelessWidget {
         fontFamily: 'sans-serif',
       ),
       home: const LoginScreen(),
-      routes: {'/dashboard': (context) => const DashboardScreen()},
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
+      },
     );
   }
 }

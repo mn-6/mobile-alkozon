@@ -14,19 +14,25 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final AuthService _authService = AuthService();
-  String _userEmail = '';
+  String _userDisplayName = '';
 
   @override
   void initState() {
     super.initState();
-    _loadUserEmail();
+    _loadUserDisplayName();
   }
 
-  Future<void> _loadUserEmail() async {
+  Future<void> _loadUserDisplayName() async {
+    final fullName = await _authService.getCurrentUserFullName();
     final email = await _authService.getCurrentUserEmail();
+    final fallbackFromEmail = (email?.split('@').first ?? '').trim();
+    final display = (fullName?.trim().isNotEmpty == true)
+        ? fullName!.trim()
+        : (fallbackFromEmail.isNotEmpty ? fallbackFromEmail : 'Pracowniku');
+
     if (mounted) {
       setState(() {
-        _userEmail = email ?? '';
+        _userDisplayName = display;
       });
     }
   }
@@ -61,7 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Dzień dobry, $_userEmail!",
+              "Dzień dobry, $_userDisplayName!",
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,

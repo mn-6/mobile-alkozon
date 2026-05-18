@@ -141,7 +141,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   const _SectionHeader(title: 'Produkty'),
                   const SizedBox(height: 12),
                   ...overview.products.map(
-                    (item) => _InventoryCard(item: item),
+                    (item) => _InventoryCard(
+                      item: item,
+                      onInventoryChanged: _reloadInventory,
+                    ),
                   ),
                 ],
                 if (overview.rawMaterials.isNotEmpty) ...[
@@ -149,7 +152,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   const _SectionHeader(title: 'Surowce'),
                   const SizedBox(height: 12),
                   ...overview.rawMaterials.map(
-                    (item) => _InventoryCard(item: item),
+                    (item) => _InventoryCard(
+                      item: item,
+                      onInventoryChanged: _reloadInventory,
+                    ),
                   ),
                 ],
               ],
@@ -180,9 +186,10 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _InventoryCard extends StatelessWidget {
-  const _InventoryCard({required this.item});
+  const _InventoryCard({required this.item, required this.onInventoryChanged});
 
   final InventoryItem item;
+  final Future<void> Function() onInventoryChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -194,11 +201,14 @@ class _InventoryCard extends StatelessWidget {
         : Icons.science_outlined;
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => InventoryDetailScreen(item: item),
+            builder: (context) => InventoryDetailScreen(
+              item: item,
+              onInventoryChanged: onInventoryChanged,
+            ),
           ),
         );
       },

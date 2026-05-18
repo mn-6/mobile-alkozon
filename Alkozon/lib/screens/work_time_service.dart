@@ -74,15 +74,24 @@ class WorkTimerService extends ChangeNotifier {
       final openSession = await _workLogService.getCurrentOpenSession();
 
       if (openSession != null) {
-        _startTime = openSession.clockInAt.toLocal();
-        _isRunning = true;
-        _seconds = DateTime.now().difference(_startTime!).inSeconds;
-        await _storage.write(
-          key: 'start_time',
-          value: _startTime!.toIso8601String(),
-        );
-        _startTimerLoop();
-        await _updateNotification();
+        if (!_isRunning) {
+          // Restore timer from server (e.g. after app restart).
+          // Do NOT overwrite if already running locally (e.g. just scanned START)
+          // to avoid server/device clock drift showing wrong elapsed time.
+          _startTime = openSession.clockInAt.toLocal();
+          _isRunning = true;
+          _seconds = DateTime.now()
+              .difference(_startTime!)
+              .inSeconds
+              .clamp(0, 86400);
+          await _storage.write(
+            key: 'start_time',
+            value: _startTime!.toIso8601String(),
+          );
+          _startTimerLoop();
+          await _updateNotification();
+        }
+        // If already running locally, keep existing _startTime (avoids clock drift)
       } else {
         _timer?.cancel();
         _notificationsPlugin.cancel(888);
@@ -180,10 +189,11 @@ class WorkTimerService extends ChangeNotifier {
 
   Future<QrActionResult> _startWork() async {
     try {
-      final entry = await _workLogService.clockIn();
-      _startTime = entry.clockInAt.toLocal();
+      await _workLogService.clockIn();
+      // Start local stopwatch from scan moment to avoid backend/device clock drift.
+      _startTime = DateTime.now();
       _isRunning = true;
-      _seconds = DateTime.now().difference(_startTime!).inSeconds;
+      _seconds = 0;
 
       await _storage.write(
         key: 'start_time',

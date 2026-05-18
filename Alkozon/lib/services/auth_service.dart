@@ -12,6 +12,8 @@ class AuthService {
   static const String _tokenKey = "jwt_access_token";
   static const String _refreshTokenKey = "jwt_refresh_token";
   static const String _deviceIdKey = "staff_device_id";
+  static const String _firstNameKey = "user_first_name";
+  static const String _lastNameKey = "user_last_name";
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -113,6 +115,8 @@ class AuthService {
 
     final accessToken = rawData['accessToken'] as String?;
     final refreshToken = rawData['refreshToken'] as String?;
+    final firstName = rawData['firstName'] as String?;
+    final lastName = rawData['lastName'] as String?;
 
     if (accessToken == null || refreshToken == null) {
       return {'success': false, 'error': 'Brak tokenów w odpowiedzi serwera'};
@@ -121,6 +125,8 @@ class AuthService {
     // Zapisz tokeny w bezpiecznym magazynie
     await _secureStorage.write(key: _tokenKey, value: accessToken);
     await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
+    await _secureStorage.write(key: _firstNameKey, value: firstName ?? '');
+    await _secureStorage.write(key: _lastNameKey, value: lastName ?? '');
 
     // Ustaw token w domyślnym nagłówku dla kolejnych requestów
     _dio.options.headers['Authorization'] = 'Bearer $accessToken';
@@ -150,7 +156,75 @@ class AuthService {
   Future<void> logout() async {
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
+    await _secureStorage.delete(key: _firstNameKey);
+    await _secureStorage.delete(key: _lastNameKey);
     _dio.options.headers.remove('Authorization');
+  }
+
+  Future<String?> getCurrentUserFullName() async {
+    final profile = await getCurrentUserProfile();
+    if (profile != null) {
+      return profile.displayName;
+    }
+
+    final storedFirst = (await _secureStorage.read(key: _firstNameKey))?.trim();
+    final storedLast = (await _secureStorage.read(key: _lastNameKey))?.trim();
+    final fullFromStorage = _joinNames(storedFirst, storedLast);
+    if (fullFromStorage != null) {
+      return fullFromStorage;
+    }
+
+    final token = await getToken();
+    if (token == null) return null;
+
+    try {
+      final response = await _dio.get(
+        '/users/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data;
+      if (data is Map) {
+        final first = (data['firstName'] as String?)?.trim();
+        final last = (data['lastName'] as String?)?.trim();
+        await _secureStorage.write(key: _firstNameKey, value: first ?? '');
+        await _secureStorage.write(key: _lastNameKey, value: last ?? '');
+        return _joinNames(first, last);
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  Future<CurrentUserProfile?> getCurrentUserProfile() async {
+    final token = await getToken();
+    if (token == null) return null;
+
+    try {
+      final response = await _dio.get(
+        '/users/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return CurrentUserProfile.fromJson(data);
+      }
+      if (data is Map) {
+        return CurrentUserProfile.fromJson(Map<String, dynamic>.from(data));
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  String? _joinNames(String? firstName, String? lastName) {
+    final first = firstName?.trim() ?? '';
+    final last = lastName?.trim() ?? '';
+    if (first.isEmpty && last.isEmpty) return null;
+    return '$first $last'.trim();
   }
 
   // Sprawdź czy token istnieje
@@ -188,5 +262,44 @@ class AuthService {
     if (token == null) return null;
     final claims = decodeTokenClaims(token);
     return claims?['email'] as String?;
+  }
+}
+
+class CurrentUserProfile {
+  const CurrentUserProfile({
+    required this.id,
+    required this.email,
+    required this.role,
+    required this.firstName,
+    required this.lastName,
+    required this.courier,
+    required this.active,
+  });
+
+  final int id;
+  final String email;
+  final String role;
+  final String? firstName;
+  final String? lastName;
+  final bool courier;
+  final bool active;
+
+  factory CurrentUserProfile.fromJson(Map<String, dynamic> json) {
+    return CurrentUserProfile(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      email: json['email'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+      firstName: json['firstName'] as String?,
+      lastName: json['lastName'] as String?,
+      courier: json['courier'] as bool? ?? false,
+      active: json['active'] as bool? ?? false,
+    );
+  }
+
+  String get displayName {
+    final first = (firstName ?? '').trim();
+    final last = (lastName ?? '').trim();
+    final combined = '$first $last'.trim();
+    return combined.isEmpty ? email : combined;
   }
 }

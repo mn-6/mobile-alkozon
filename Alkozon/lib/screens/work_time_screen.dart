@@ -66,6 +66,10 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
               ),
               backgroundColor: Colors.blueAccent.withOpacity(0.15),
               elevation: 0,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(2.0),
+                child: Container(color: Colors.blueAccent, height: 2.0),
+              ),
             ),
             body: Column(
               children: [
@@ -164,13 +168,13 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
     );
   }
 
-  void _openScanner(BuildContext context) {
+  void _openScanner(BuildContext screenContext) {
     showModalBottomSheet(
-      context: context,
+      context: screenContext,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
+      builder: (modalContext) => Container(
+        height: MediaQuery.of(modalContext).size.height * 0.8,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -196,7 +200,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(modalContext),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -220,12 +224,14 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                         final result = await timerService.processQrCode(code);
                         if (!mounted) return;
 
-                        Navigator.pop(context);
+                        Navigator.pop(modalContext);
 
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        // Use screenContext (not modalContext) because modal is already
+                        // popped and its context is deactivated.
+                        ScaffoldMessenger.of(screenContext).showSnackBar(
                           SnackBar(
                             content: Text(result.message),
-                            duration: Duration(seconds: 1),
+                            duration: const Duration(seconds: 1),
                             behavior: SnackBarBehavior.floating,
                             backgroundColor: result.success
                                 ? Colors.green.shade700

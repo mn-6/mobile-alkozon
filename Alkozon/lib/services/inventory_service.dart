@@ -4,7 +4,8 @@ import 'auth_service.dart';
 
 class InventoryItem {
   const InventoryItem({
-    required this.id,
+    this.productId,
+    this.rawMaterialId,
     required this.name,
     required this.quantity,
     required this.type,
@@ -12,7 +13,8 @@ class InventoryItem {
     this.unit,
   });
 
-  final int id;
+  final int? productId;
+  final int? rawMaterialId;
   final String name;
   final num quantity;
   final InventoryItemType type;
@@ -20,6 +22,8 @@ class InventoryItem {
   final String? unit;
 
   bool get isProduct => type == InventoryItemType.product;
+
+  int? get id => isProduct ? productId : rawMaterialId;
 
   String get quantityLabel {
     if (quantity is int) {
@@ -57,6 +61,28 @@ class InventoryItem {
           : 'Produkt gotowy';
     }
     return unit?.isNotEmpty == true ? unit! : 'Surowiec';
+  }
+
+  List<MapEntry<String, String>> get detailEntries {
+    final rows = <MapEntry<String, String>>[];
+    rows.add(MapEntry('Typ', isProduct ? 'Produkt' : 'Surowiec'));
+    if (isProduct) {
+      rows.add(MapEntry('Product ID', '${productId ?? '-'}'));
+      rows.add(MapEntry('Nazwa', name));
+      rows.add(MapEntry('Ilość', quantityLabel));
+      rows.add(
+        MapEntry(
+          'Strefa magazynowa',
+          warehouseZone?.isNotEmpty == true ? warehouseZone! : '-',
+        ),
+      );
+    } else {
+      rows.add(MapEntry('Raw Material ID', '${rawMaterialId ?? '-'}'));
+      rows.add(MapEntry('Nazwa', name));
+      rows.add(MapEntry('Ilość', quantityLabel));
+      rows.add(MapEntry('Jednostka', unit?.isNotEmpty == true ? unit! : '-'));
+    }
+    return rows;
   }
 }
 
@@ -111,9 +137,54 @@ class InventoryService {
     return InventoryOverview(products: products, rawMaterials: rawMaterials);
   }
 
+  Future<InventoryItem> addQuantity(InventoryItem item, int amount) {
+    return _changeQuantity(item, amount.abs());
+  }
+
+  Future<InventoryItem> consumeQuantity(InventoryItem item, int amount) {
+    return _changeQuantity(item, -amount.abs());
+  }
+
+  Future<InventoryItem> _changeQuantity(InventoryItem item, int delta) async {
+    final token = await _authService.getToken();
+    if (token == null) {
+      throw Exception('Brak tokenu logowania');
+    }
+
+    final isProduct = item.isProduct;
+    final id = item.id;
+    if (id == null) {
+      throw Exception('Brak identyfikatora pozycji magazynowej');
+    }
+
+    final response = await _dio.patch(
+      isProduct ? '/inventory/products/$id' : '/inventory/raw-materials/$id',
+      data: {'delta': delta},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return isProduct
+        ? InventoryItem(
+            productId: _toInt(data['productId']),
+            name: data['name'] as String? ?? item.name,
+            quantity: data['quantity'] as num? ?? item.quantity,
+            type: InventoryItemType.product,
+            warehouseZone:
+                data['warehouseZone'] as String? ?? item.warehouseZone,
+          )
+        : InventoryItem(
+            rawMaterialId: _toInt(data['id']),
+            name: data['name'] as String? ?? item.name,
+            quantity: data['quantity'] as num? ?? item.quantity,
+            type: InventoryItemType.rawMaterial,
+            unit: data['unit'] as String? ?? item.unit,
+          );
+  }
+
   InventoryItem _mapProduct(Map<String, dynamic> json) {
     return InventoryItem(
-      id: json['productId'] as int,
+      productId: _toInt(json['productId']),
       name: json['name'] as String? ?? 'Produkt',
       quantity: json['quantity'] as int? ?? 0,
       type: InventoryItemType.product,
@@ -124,11 +195,17 @@ class InventoryService {
   InventoryItem _mapRawMaterial(Map<String, dynamic> json) {
     final quantity = json['quantity'];
     return InventoryItem(
-      id: json['id'] as int,
+      rawMaterialId: _toInt(json['id']),
       name: json['name'] as String? ?? 'Surowiec',
       quantity: quantity is num ? quantity : num.parse(quantity.toString()),
       type: InventoryItemType.rawMaterial,
       unit: json['unit'] as String?,
     );
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
   }
 }

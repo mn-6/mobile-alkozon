@@ -1,5 +1,18 @@
 import 'package:flutter/material.dart';
+import '../services/order_service.dart';
 import 'order_detail_screen.dart';
+
+class _OrdersViewData {
+  const _OrdersViewData({
+    required this.active,
+    required this.finished,
+    required this.delivery,
+  });
+
+  final List<OrderData> active;
+  final List<OrderData> finished;
+  final List<OrderData> delivery;
+}
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -9,26 +22,74 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  final List<Map<String, dynamic>> _orders = [
-    {'id': '#1024', 'name': 'Piwko', 'quantity': 2, 'status': 'W realizacji', 'imgSeed': 'tools'},
-    {'id': '#1025', 'name': 'Winko', 'quantity': 10, 'status': 'Oczekuje', 'imgSeed': 'helmet'},
-    {'id': '#1026', 'name': 'Jakaś customowa nalewka v1', 'quantity': 50, 'status': 'Wysłano', 'imgSeed': 'gloves'},
-    {'id': '#1027', 'name': 'Jakaś customowa nalewka v2', 'quantity': 1, 'status': 'W realizacji', 'imgSeed': 'drill'},
-    {'id': '#1028', 'name': 'Nie wiem, spirytus', 'quantity': 5, 'status': 'Oczekuje', 'imgSeed': 'shoes'},
-  ];
+  final OrderService _orderService = OrderService();
+  late Future<_OrdersViewData> _ordersFuture;
 
-  Future<void> _navigateToDetail(BuildContext context, int index) async {
-    final result = await Navigator.push(
+  @override
+  void initState() {
+    super.initState();
+    _ordersFuture = _loadData();
+  }
+
+  Future<_OrdersViewData> _loadData() async {
+    final allOrders = await _orderService.getAllOrders();
+    final deliveryOrders = await _orderService.getMyDeliveryOrders();
+
+    final active = allOrders.where(_isActive).toList();
+    final finished = allOrders.where(_isFinished).toList();
+
+    return _OrdersViewData(
+      active: active,
+      finished: finished,
+      delivery: deliveryOrders,
+    );
+  }
+
+  Future<void> _reload() async {
+    final next = _loadData();
+    setState(() {
+      _ordersFuture = next;
+    });
+    await next;
+  }
+
+  Future<void> _navigateToDetail(BuildContext context, OrderData order) async {
+    final updated = await Navigator.push<OrderData>(
       context,
-      MaterialPageRoute(
-        builder: (context) => OrderDetailScreen(order: _orders[index]),
-      ),
+      MaterialPageRoute(builder: (context) => OrderDetailScreen(order: order)),
     );
 
-    if (result != null && result is String) {
-      setState(() {
-        _orders[index]['status'] = result;
-      });
+    if (updated != null) {
+      await _reload();
+    }
+  }
+
+  bool _isActive(OrderData order) {
+    return order.status != 'CANCELLED' &&
+        order.status != 'DELIVERED' &&
+        order.status != 'IN_DELIVERY';
+  }
+
+  bool _isFinished(OrderData order) {
+    return order.status == 'CANCELLED' || order.status == 'DELIVERED';
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'SUBMITTED':
+        return 'Zgłoszone';
+      case 'IN_PRODUCTION':
+        return 'Produkcja';
+      case 'IN_PACKING':
+        return 'Pakowanie';
+      case 'IN_DELIVERY':
+        return 'Dostawa';
+      case 'DELIVERED':
+        return 'Dostarczone';
+      case 'CANCELLED':
+        return 'Anulowane';
+      default:
+        return status;
     }
   }
 
@@ -45,75 +106,179 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ),
         title: const Text(
           "Aktywne zamówienia",
-          style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: themeColor.withOpacity(0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
-          child: Container(
-            color: themeColor.withOpacity(0.5),
-            height: 2.0,
-          ),
+          child: Container(color: themeColor.withOpacity(0.5), height: 2.0),
         ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: _orders.length,
+      body: FutureBuilder<_OrdersViewData>(
+        future: _ordersFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                children: [
+                  const SizedBox(height: 120),
+                  const Icon(
+                    Icons.cloud_off,
+                    size: 54,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Nie udało się pobrać zamówień.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final data =
+              snapshot.data ??
+              const _OrdersViewData(active: [], finished: [], delivery: []);
+
+          return DefaultTabController(
+            length: 3,
+            child: Column(
+              children: [
+                const TabBar(
+                  labelColor: Colors.green,
+                  unselectedLabelColor: Color(0xFF64748B),
+                  indicatorColor: Colors.green,
+                  tabs: [
+                    Tab(text: 'Aktywne'),
+                    Tab(text: 'Zakończone'),
+                    Tab(text: 'Dowozy'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildOrderList(data.active),
+                      _buildOrderList(data.finished),
+                      _buildOrderList(data.delivery),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildOrderList(List<OrderData> orders) {
+    if (orders.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: const [
+            SizedBox(height: 120),
+            Icon(Icons.inbox_outlined, size: 56, color: Color(0xFF94A3B8)),
+            SizedBox(height: 10),
+            Text(
+              'Brak zamówień w tej zakładce',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: orders.length,
         itemBuilder: (context, index) {
-          final order = _orders[index];
+          final order = orders[index];
+          final productsLabel = order.items.isEmpty
+              ? 'Brak pozycji'
+              : order.items.first.productName;
 
           return GestureDetector(
-            onTap: () => _navigateToDetail(context, index),
+            onTap: () => _navigateToDetail(context, order),
             child: Card(
               elevation: 0,
-              margin: const EdgeInsets.only(bottom: 16.0),
+              margin: const EdgeInsets.only(bottom: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
               color: Colors.white,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        'https://picsum.photos/seed/${order['imgSeed']}/100/100',
-                        width: 80,
-                        height: 80,
-                        fit: BoxFit.cover,
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.shopping_bag_outlined,
+                        color: Colors.green,
+                        size: 34,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Zamówienie ${order['id']}",
+                            'Zamówienie ${order.displayNumber}',
                             style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold
+                              fontSize: 13,
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           Text(
-                            order['name'],
+                            productsLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF1E293B),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "Status: ${order['status']}",
+                            'Status: ${_statusLabel(order.status)}',
                             style: const TextStyle(
-                                color: Colors.blueAccent,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500
+                              color: Colors.blueAccent,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
