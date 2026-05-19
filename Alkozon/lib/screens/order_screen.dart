@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/order_service.dart';
+import '../services/product_image_resolver.dart';
 import 'order_detail_screen.dart';
 
 class _OrdersViewData {
@@ -15,7 +16,14 @@ class _OrdersViewData {
 }
 
 class OrdersScreen extends StatefulWidget {
-  const OrdersScreen({super.key});
+  const OrdersScreen({
+    super.key,
+    this.initialTabIndex = 0,
+    this.initialOrderId,
+  });
+
+  final int initialTabIndex;
+  final int? initialOrderId;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -24,6 +32,7 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   final OrderService _orderService = OrderService();
   late Future<_OrdersViewData> _ordersFuture;
+  bool _initialOrderHandled = false;
 
   @override
   void initState() {
@@ -104,6 +113,29 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  void _maybeOpenInitialOrder(_OrdersViewData data) {
+    if (_initialOrderHandled || widget.initialOrderId == null) {
+      return;
+    }
+
+    final allOrders = [...data.active, ...data.finished, ...data.delivery];
+    final targetOrder = allOrders.cast<OrderData?>().firstWhere(
+      (order) => order?.id == widget.initialOrderId,
+      orElse: () => null,
+    );
+    if (targetOrder == null) {
+      return;
+    }
+
+    _initialOrderHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _navigateToDetail(context, targetOrder);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color themeColor = Colors.greenAccent;
@@ -170,7 +202,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
               snapshot.data ??
               const _OrdersViewData(active: [], finished: [], delivery: []);
 
+          _maybeOpenInitialOrder(data);
+
           return DefaultTabController(
+            initialIndex: widget.initialTabIndex.clamp(0, 2),
             length: 3,
             child: Column(
               children: [
@@ -232,6 +267,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
           final productsLabel = order.items.isEmpty
               ? 'Brak pozycji'
               : order.items.first.productName;
+          final imagePath = ProductImageResolver.findAssetForNames(
+            order.items.map((item) => item.productName),
+          );
 
           return GestureDetector(
             onTap: () => _navigateToDetail(context, order),
@@ -254,10 +292,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         color: Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
-                        Icons.shopping_bag_outlined,
-                        color: Colors.green,
-                        size: 34,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: imagePath != null
+                            ? Image.asset(
+                                imagePath,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: Colors.green,
+                                  size: 34,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: Colors.green,
+                                size: 34,
+                              ),
                       ),
                     ),
                     const SizedBox(width: 14),

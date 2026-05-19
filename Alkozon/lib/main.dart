@@ -2,22 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:alkozon/screens/dashboard.dart';
 import 'package:alkozon/screens/forgot_password_screen.dart';
 import 'package:alkozon/services/auth_service.dart';
+import 'package:alkozon/services/notification_service.dart';
+import 'package:alkozon/services/startup_warmup_service.dart';
 import 'services/security_service.dart'; // IMPORT Twojego nowego serwisu
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SecurityService.checkSecurity();
+  await NotificationService.instance.initialize();
 
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final StartupWarmupService _startupWarmupService = StartupWarmupService();
+  bool _isWarmingUp = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _warmUpServer();
+  }
+
+  Future<void> _warmUpServer() async {
+    await _startupWarmupService.waitForServerReady();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isWarmingUp = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: NotificationService.instance.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFF8FAFC),
@@ -27,6 +55,17 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+      },
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            if (_isWarmingUp) ...[
+              const ModalBarrier(dismissible: false, color: Color(0x88FFFFFF)),
+              const Center(child: CircularProgressIndicator()),
+            ],
+          ],
+        );
       },
     );
   }
@@ -41,6 +80,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService.instance;
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
   late TextEditingController _codeController;
@@ -82,9 +122,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (mounted) {
       if (result['success']) {
+        await _notificationService.onAuthenticated();
         // Logowanie udane - przejdź do Dashboard
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/dashboard');
+          Future<void>.delayed(Duration.zero, () {
+            _notificationService.processPendingNavigation();
+          });
         }
       } else if (result['requires2fa'] == true) {
         setState(() {

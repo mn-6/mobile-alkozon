@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/order_service.dart';
+import '../services/product_image_resolver.dart';
 import 'order_navigation_map_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
@@ -175,6 +176,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     const Color themeColor = Colors.greenAccent;
+    final headerImagePath = ProductImageResolver.findAssetForNames(
+      widget.order.items.map((item) => item.productName),
+    );
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -211,10 +215,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     borderRadius: BorderRadius.circular(16),
                     color: Colors.green.withOpacity(0.12),
                   ),
-                  child: const Icon(
-                    Icons.shopping_bag_outlined,
-                    size: 54,
-                    color: Colors.green,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: headerImagePath != null
+                        ? Image.asset(
+                            headerImagePath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 54,
+                              color: Colors.green,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 54,
+                            color: Colors.green,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 24),
@@ -313,8 +330,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            ...widget.order.items.map(
-              (item) => Container(
+            ...widget.order.items.map((item) {
+              final itemImagePath = ProductImageResolver.findAssetForName(
+                item.productName,
+              );
+              return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -322,23 +342,57 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item.productName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: itemImagePath != null
+                            ? Image.asset(
+                                itemImagePath,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.shopping_bag_outlined,
+                                  color: Colors.green,
+                                  size: 24,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_outlined,
+                                color: Colors.green,
+                                size: 24,
+                              ),
+                      ),
                     ),
-                    const SizedBox(height: 6),
-                    Text('Produkt ID: ${item.productId}'),
-                    Text('Ilość: ${item.quantity}'),
-                    Text(
-                      'Cena jednostkowa: ${_formatUnitPrice(item.unitPrice)}',
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.productName,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 6),
+                          Text('Produkt ID: ${item.productId}'),
+                          Text('Ilość: ${item.quantity}'),
+                          Text(
+                            'Cena jednostkowa: ${_formatUnitPrice(item.unitPrice)}',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            }),
             const SizedBox(height: 24),
             if (_isNavigationMode) ...[
               SizedBox(

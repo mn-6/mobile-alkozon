@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alkozon/services/auth_service.dart';
+import 'package:alkozon/services/notification_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,6 +16,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   static const String _photoPathKey = 'profile_photo_path';
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService.instance;
   final ImagePicker _imagePicker = ImagePicker();
 
   late Future<CurrentUserProfile?> _profileFuture;
@@ -190,6 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: TextButton.icon(
               onPressed: () async {
                 await _authService.logout();
+                await _notificationService.initialize();
                 if (!mounted) return;
                 Navigator.pushNamedAndRemoveUntil(
                   context,

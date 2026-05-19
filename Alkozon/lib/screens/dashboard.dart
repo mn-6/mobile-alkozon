@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
+import 'notifications_screen.dart';
 import 'work_time_screen.dart';
 import 'inventory_screen.dart';
 import 'order_screen.dart';
@@ -14,12 +16,18 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService.instance;
   String _userDisplayName = '';
 
   @override
   void initState() {
     super.initState();
     _loadUserDisplayName();
+    _notificationService.initialize();
+    _notificationService.onAuthenticated();
+    Future<void>.delayed(Duration.zero, () {
+      _notificationService.processPendingNavigation();
+    });
   }
 
   Future<void> _loadUserDisplayName() async {
@@ -52,12 +60,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_none,
-              color: Color(0xFF64748B),
-            ),
-            onPressed: () {},
+          AnimatedBuilder(
+            animation: _notificationService,
+            builder: (context, _) {
+              final unreadCount = _notificationService.unreadCount;
+              return IconButton(
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none,
+                      color: Color(0xFF64748B),
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+              );
+            },
           ),
         ],
       ),

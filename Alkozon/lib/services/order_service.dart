@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'api_config.dart';
 import 'auth_service.dart';
 
 class DeliveryAssignment {
@@ -130,10 +131,7 @@ class OrderService {
   OrderService({AuthService? authService})
     : _authService = authService ?? AuthService();
 
-  static const String _apiUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
-  );
+  static const String _apiUrl = ApiConfig.baseUrl;
 
   final AuthService _authService;
   final Dio _dio = Dio(

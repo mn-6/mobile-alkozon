@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/inventory_service.dart';
+import '../services/product_image_resolver.dart';
 
 class InventoryDetailScreen extends StatefulWidget {
   const InventoryDetailScreen({
@@ -145,6 +146,7 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
     final IconData icon = _currentItem.isProduct
         ? Icons.inventory_2_outlined
         : Icons.science_outlined;
+    final imagePath = ProductImageResolver.findAssetForName(_currentItem.name);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -190,7 +192,17 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
                         color: accentColor.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(icon, size: 44, color: accentColor),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: imagePath != null
+                            ? Image.asset(
+                                imagePath,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(icon, size: 44, color: accentColor),
+                              )
+                            : Icon(icon, size: 44, color: accentColor),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

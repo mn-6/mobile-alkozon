@@ -3,12 +3,10 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'api_config.dart';
+
 class AuthService {
-  // Wi-Fi development against backend running on the same LAN.
-  static const String _apiUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080/api',
-  );
+  static const String _apiUrl = ApiConfig.baseUrl;
   static const String _tokenKey = "jwt_access_token";
   static const String _refreshTokenKey = "jwt_refresh_token";
   static const String _deviceIdKey = "staff_device_id";
@@ -145,6 +143,10 @@ class AuthService {
         'android-${DateTime.now().millisecondsSinceEpoch}-${random.nextInt(1 << 32)}';
     await _secureStorage.write(key: _deviceIdKey, value: generated);
     return generated;
+  }
+
+  Future<String> getDeviceId() async {
+    return _getOrCreateDeviceId();
   }
 
   // Pobierz zapisany token
