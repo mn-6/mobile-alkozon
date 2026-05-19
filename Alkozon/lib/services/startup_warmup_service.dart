@@ -16,26 +16,33 @@ class StartupWarmupService {
 
   Future<void> waitForServerReady({
     Duration retryDelay = const Duration(seconds: 2),
+    Duration timeout = const Duration(seconds: 60),
   }) async {
-    while (true) {
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
       try {
         final response = await _dio.get(
-          '/users/me',
+          '/products',
+          queryParameters: const {'page': 0, 'size': 1},
           options: Options(validateStatus: (_) => true),
         );
 
-        // Any HTTP status means backend responded (including 401/404/500).
-        if (response.statusCode != null) {
+        if (response.statusCode != null && response.statusCode! < 500) {
           return;
         }
       } on DioException catch (error) {
-        // Keep waiting only for no-response transport failures.
-        if (error.response != null) {
+        if (error.response != null && error.response!.statusCode! < 500) {
           return;
         }
       }
 
       await Future<void>.delayed(retryDelay);
     }
+
+    throw StateError(
+      'Backend nie odpowiada pod ${ApiConfig.baseUrl}. '
+      'Uruchom API (port 8080) i na telefonie USB: adb reverse tcp:8080 tcp:8080',
+    );
   }
 }

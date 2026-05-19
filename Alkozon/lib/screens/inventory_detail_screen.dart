@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/inventory_service.dart';
-import '../services/product_image_resolver.dart';
+import '../widgets/product_thumbnail.dart';
 
 class InventoryDetailScreen extends StatefulWidget {
   const InventoryDetailScreen({
@@ -146,8 +146,6 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
     final IconData icon = _currentItem.isProduct
         ? Icons.inventory_2_outlined
         : Icons.science_outlined;
-    final imagePath = ProductImageResolver.findAssetForName(_currentItem.name);
-
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -183,36 +181,25 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: imagePath != null
-                            ? Image.asset(
-                                imagePath,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    Icon(icon, size: 44, color: accentColor),
-                              )
-                            : Icon(icon, size: 44, color: accentColor),
+                    Center(
+                      child: ProductThumbnail(
+                        productNames: [_currentItem.name],
+                        size: 160,
+                        borderRadius: 16,
+                        accentColor: accentColor,
+                        fallbackIcon: icon,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        _currentItem.name,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _currentItem.name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
                   ],

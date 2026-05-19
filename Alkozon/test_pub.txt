@@ -1,0 +1,3 @@
+﻿flutter:
+  assets:
+    - lib/imgs/products/vodka/Wódka Ostoya.png

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/inventory_service.dart';
-import '../services/product_image_resolver.dart';
+import '../widgets/product_thumbnail.dart';
 import 'inventory_detail_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -200,8 +200,6 @@ class _InventoryCard extends StatelessWidget {
     final IconData icon = item.isProduct
         ? Icons.inventory_2_outlined
         : Icons.science_outlined;
-    final imagePath = ProductImageResolver.findAssetForName(item.name);
-
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
@@ -227,24 +225,10 @@ class _InventoryCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: imagePath != null
-                      ? Image.asset(
-                          imagePath,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Icon(icon, color: accentColor, size: 36),
-                        )
-                      : Icon(icon, color: accentColor, size: 36),
-                ),
+              ProductThumbnail(
+                productNames: [item.name],
+                accentColor: accentColor,
+                fallbackIcon: icon,
               ),
               const SizedBox(width: 16),
               Expanded(

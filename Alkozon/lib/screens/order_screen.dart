@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/order_service.dart';
-import '../services/product_image_resolver.dart';
+import '../widgets/product_thumbnail.dart';
 import 'order_detail_screen.dart';
 
 class _OrdersViewData {
@@ -267,10 +267,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
           final productsLabel = order.items.isEmpty
               ? 'Brak pozycji'
               : order.items.first.productName;
-          final imagePath = ProductImageResolver.findAssetForNames(
-            order.items.map((item) => item.productName),
-          );
-
           return GestureDetector(
             onTap: () => _navigateToDetail(context, order),
             child: Card(
@@ -285,31 +281,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: imagePath != null
-                            ? Image.asset(
-                                imagePath,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.shopping_bag_outlined,
-                                  color: Colors.green,
-                                  size: 34,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.shopping_bag_outlined,
-                                color: Colors.green,
-                                size: 34,
-                              ),
-                      ),
+                    ProductThumbnail(
+                      productNames: order.items.map((item) => item.productName),
+                      accentColor: Colors.green,
                     ),
                     const SizedBox(width: 14),
                     Expanded(
