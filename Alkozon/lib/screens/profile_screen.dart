@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alkozon/services/auth_service.dart';
-import 'package:alkozon/services/notification_service.dart';
+import 'package:alkozon/screens/work_time_service.dart';
+import 'package:alkozon/widgets/horizontal_scroll_text.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,7 +17,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   static const String _photoPathKey = 'profile_photo_path';
   final AuthService _authService = AuthService();
-  final NotificationService _notificationService = NotificationService.instance;
   final ImagePicker _imagePicker = ImagePicker();
 
   late Future<CurrentUserProfile?> _profileFuture;
@@ -191,8 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: double.infinity,
             child: TextButton.icon(
               onPressed: () async {
+                await WorkTimerService().endActiveSessionForLogout();
                 await _authService.logout();
-                await _notificationService.initialize();
                 if (!mounted) return;
                 Navigator.pushNamedAndRemoveUntil(
                   context,
@@ -232,22 +232,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Icon(icon, color: color, size: 20),
         ),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
-            ),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Color(0xFF1E293B),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              HorizontalScrollText(
+                text: value,
+                style: const TextStyle(
+                  color: Color(0xFF1E293B),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

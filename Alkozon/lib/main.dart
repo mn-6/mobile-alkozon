@@ -174,7 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
         await _notificationService.onAuthenticated();
         // Logowanie udane - przejdź do Dashboard
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/dashboard',
+            (route) => false,
+          );
           Future<void>.delayed(Duration.zero, () {
             _notificationService.processPendingNavigation();
           });
@@ -291,6 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _emailController,
                 enabled: !_isLoading,
+                maxLines: 1,
                 keyboardType: TextInputType.emailAddress,
                 decoration: _inputDecoration(
                   "Wpisz swój email",
@@ -302,6 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _passwordController,
                 enabled: !_isLoading,
+                maxLines: 1,
                 obscureText: !_isPasswordVisibleWhilePressed,
                 decoration: _inputDecoration(
                   "••••••••",
@@ -337,6 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _codeController,
                   enabled: !_isLoading,
+                  maxLines: 1,
                   keyboardType: TextInputType.number,
                   decoration: _inputDecoration(
                     "Wpisz kod z e-maila",

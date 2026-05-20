@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -14,14 +15,36 @@ class QrActionResult {
   final String message;
 }
 
+class WorkSessionStats {
+  const WorkSessionStats({
+    required this.workSeconds,
+    required this.breakSeconds,
+    required this.totalSeconds,
+  });
+
+  final int workSeconds;
+  final int breakSeconds;
+  final int totalSeconds;
+}
+
 class WorkTimerService extends ChangeNotifier {
   static final WorkTimerService _instance = WorkTimerService._internal();
   factory WorkTimerService() => _instance;
 
   WorkTimerService._internal() {
-    _initNotifications();
-    loadPersistedState();
+    _initFuture = _initialize();
   }
+
+  late final Future<void> _initFuture;
+
+  Future<void> ensureInitialized() => _initFuture;
+
+  Future<void> _initialize() async {
+    await _initNotifications();
+    await loadPersistedState();
+  }
+
+  static const int breakWarningSeconds = 15 * 60;
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
@@ -29,22 +52,68 @@ class WorkTimerService extends ChangeNotifier {
 
   final _storage = const FlutterSecureStorage();
 
+  static const _startTimeKey = 'start_time';
+  static const _sessionIdKey = 'work_session_id';
+  static const _accumulatedBreakKey = 'work_break_accumulated_seconds';
+  static const _onBreakKey = 'work_on_break';
+  static const _breakStartKey = 'work_break_start_time';
+  static const _breakTotalsCacheKey = 'work_log_break_totals_cache';
+
   Timer? _timer;
-  int _seconds = 0;
   bool _isRunning = false;
   DateTime? _startTime;
+  int? _openSessionId;
+  int _accumulatedBreakSeconds = 0;
+  bool _isOnBreak = false;
+  DateTime? _breakStartTime;
+  Map<int, int> _breakTotalsByLogId = {};
+
   List<WorkLogEntry> _history = [];
   bool _isSyncing = false;
   bool _isHistoryLoading = false;
   String? _historyError;
+  bool _isBreakActionInProgress = false;
 
-  int get seconds => _seconds;
+  int get seconds => workSeconds;
   bool get isRunning => _isRunning;
+  bool get isOnBreak => _isOnBreak;
+  bool get isBreakActionInProgress => _isBreakActionInProgress;
   DateTime? get startTime => _startTime;
   List<WorkLogEntry> get history => _history;
   bool get isSyncing => _isSyncing;
   bool get isHistoryLoading => _isHistoryLoading;
   String? get historyError => _historyError;
+
+  static int _clampInt(int value, int lower, int upper) {
+    if (lower > upper) return lower;
+    return value.clamp(lower, upper);
+  }
+
+  int get workSeconds {
+    if (_startTime == null) return 0;
+    final elapsed = DateTime.now().difference(_startTime!).inSeconds;
+    if (elapsed <= 0) return 0;
+    final currentBreak = _currentBreakSegmentSeconds;
+    return _clampInt(
+      elapsed - _accumulatedBreakSeconds - currentBreak,
+      0,
+      elapsed,
+    );
+  }
+
+  int get breakSeconds => _accumulatedBreakSeconds + _currentBreakSegmentSeconds;
+
+  int get _currentBreakSegmentSeconds {
+    if (!_isOnBreak || _breakStartTime == null) return 0;
+    return _clampInt(
+      DateTime.now().difference(_breakStartTime!).inSeconds,
+      0,
+      86400,
+    );
+  }
+
+  bool get isCurrentBreakOverLimit =>
+      _isOnBreak && _currentBreakSegmentSeconds > breakWarningSeconds;
 
   Future<void> _initNotifications() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -52,19 +121,202 @@ class WorkTimerService extends ChangeNotifier {
     await _notificationsPlugin.initialize(initSettings);
   }
 
+  Future<void> _loadBreakTotalsCache() async {
+    final raw = await _storage.read(key: _breakTotalsCacheKey);
+    if (raw == null || raw.isEmpty) {
+      _breakTotalsByLogId = {};
+      return;
+    }
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      _breakTotalsByLogId = decoded.map(
+        (key, value) => MapEntry(int.parse(key), (value as num).toInt()),
+      );
+    } catch (_) {
+      _breakTotalsByLogId = {};
+    }
+  }
+
+  Future<void> _saveBreakTotalsCache() async {
+    final encoded = jsonEncode(
+      _breakTotalsByLogId.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    await _storage.write(key: _breakTotalsCacheKey, value: encoded);
+  }
+
+  Future<void> _persistSessionState() async {
+    if (_startTime != null) {
+      await _storage.write(
+        key: _startTimeKey,
+        value: _startTime!.toIso8601String(),
+      );
+    }
+    if (_openSessionId != null) {
+      await _storage.write(
+        key: _sessionIdKey,
+        value: _openSessionId.toString(),
+      );
+    } else {
+      await _storage.delete(key: _sessionIdKey);
+    }
+    await _storage.write(
+      key: _accumulatedBreakKey,
+      value: _accumulatedBreakSeconds.toString(),
+    );
+    await _storage.write(key: _onBreakKey, value: _isOnBreak.toString());
+    if (_breakStartTime != null) {
+      await _storage.write(
+        key: _breakStartKey,
+        value: _breakStartTime!.toIso8601String(),
+      );
+    } else {
+      await _storage.delete(key: _breakStartKey);
+    }
+  }
+
+  Future<void> _clearSessionState() async {
+    _openSessionId = null;
+    _accumulatedBreakSeconds = 0;
+    _isOnBreak = false;
+    _breakStartTime = null;
+    _isRunning = false;
+    _startTime = null;
+    await _storage.delete(key: _startTimeKey);
+    await _storage.delete(key: _sessionIdKey);
+    await _storage.delete(key: _accumulatedBreakKey);
+    await _storage.delete(key: _onBreakKey);
+    await _storage.delete(key: _breakStartKey);
+  }
+
+  Future<void> _finalizeLocalSession({
+    int? sessionId,
+    int? finalBreakSeconds,
+  }) async {
+    _timer?.cancel();
+    await _notificationsPlugin.cancel(888);
+
+    if (sessionId != null && finalBreakSeconds != null) {
+      _breakTotalsByLogId[sessionId] = finalBreakSeconds;
+      await _saveBreakTotalsCache();
+    }
+
+    await _clearSessionState();
+    notifyListeners();
+  }
+
+  void _mergeBreakStartFromServer(DateTime serverBreakStart) {
+    final normalized = _normalizeBreakStart(serverBreakStart);
+    if (_breakStartTime == null) {
+      _breakStartTime = normalized;
+      return;
+    }
+    // Never move break start forward — that resets the visible break timer and
+    // makes work time appear to run again while the UI still shows a break.
+    if (normalized.isBefore(_breakStartTime!)) {
+      _breakStartTime = normalized;
+    }
+  }
+
+  int _breakSecondsBetween(DateTime? startedAt, DateTime? endedAt) {
+    if (startedAt == null || endedAt == null) return 0;
+    return _clampInt(endedAt.difference(startedAt).inSeconds, 0, 86400);
+  }
+
+  DateTime _normalizeSessionStart(DateTime serverStart) {
+    final localStart = serverStart.toLocal();
+    final now = DateTime.now();
+    return localStart.isAfter(now) ? now : localStart;
+  }
+
+  DateTime _normalizeBreakStart(DateTime serverBreakStart) {
+    final localStart = serverBreakStart.toLocal();
+    final now = DateTime.now();
+    return localStart.isAfter(now) ? now : localStart;
+  }
+
+  void _ensureBreakStartTime() {
+    if (_isOnBreak && _breakStartTime == null) {
+      _breakStartTime = DateTime.now();
+    }
+  }
+
+  Future<void> _applyOpenSession(WorkLogEntry session) async {
+    _openSessionId = session.id;
+    if (!_isRunning) {
+      _startTime = _normalizeSessionStart(session.clockInAt);
+      _isRunning = true;
+    }
+
+    final breakActive =
+        session.breakStartedAt != null && session.breakEndedAt == null;
+    if (breakActive) {
+      _isOnBreak = true;
+      _mergeBreakStartFromServer(session.breakStartedAt!);
+      _ensureBreakStartTime();
+      return;
+    }
+
+    if (_isOnBreak &&
+        session.breakStartedAt != null &&
+        session.breakEndedAt != null) {
+      _accumulatedBreakSeconds = _breakSecondsBetween(
+        session.breakStartedAt,
+        session.breakEndedAt,
+      );
+    } else if (!_isOnBreak &&
+        session.breakStartedAt != null &&
+        session.breakEndedAt != null) {
+      final completedBreak = _breakSecondsBetween(
+        session.breakStartedAt,
+        session.breakEndedAt,
+      );
+      if (completedBreak > _accumulatedBreakSeconds) {
+        _accumulatedBreakSeconds = completedBreak;
+      }
+    } else if (_isOnBreak && session.breakStartedAt == null) {
+      // Keep local break running if backend has not recorded it yet.
+      _ensureBreakStartTime();
+      return;
+    }
+
+    _isOnBreak = false;
+    _breakStartTime = null;
+  }
+
   Future<void> loadPersistedState() async {
-    final String? storedStartTime = await _storage.read(key: 'start_time');
+    await _loadBreakTotalsCache();
+
+    final storedStartTime = await _storage.read(key: _startTimeKey);
+    final storedSessionId = await _storage.read(key: _sessionIdKey);
+    final storedAccumulated = await _storage.read(key: _accumulatedBreakKey);
+    final storedOnBreak = await _storage.read(key: _onBreakKey);
+    final storedBreakStart = await _storage.read(key: _breakStartKey);
 
     if (storedStartTime != null) {
-      _startTime = DateTime.parse(storedStartTime);
+      _startTime = _normalizeSessionStart(DateTime.parse(storedStartTime));
       _isRunning = true;
+      _openSessionId = int.tryParse(storedSessionId ?? '');
+      _accumulatedBreakSeconds = int.tryParse(storedAccumulated ?? '') ?? 0;
+      _isOnBreak = storedOnBreak == 'true';
+      _breakStartTime = storedBreakStart != null
+          ? _normalizeBreakStart(DateTime.parse(storedBreakStart))
+          : null;
+      _ensureBreakStartTime();
       _startTimerLoop();
-      _updateNotification();
+      await _updateNotification();
       notifyListeners();
     }
   }
 
+  Future<void> onAppResumed() async {
+    await ensureInitialized();
+    notifyListeners();
+    await _updateNotification();
+    await refreshFromBackend();
+  }
+
   Future<void> refreshFromBackend() async {
+    await ensureInitialized();
     if (_isSyncing) return;
 
     _isSyncing = true;
@@ -74,34 +326,19 @@ class WorkTimerService extends ChangeNotifier {
       final openSession = await _workLogService.getCurrentOpenSession();
 
       if (openSession != null) {
-        if (!_isRunning) {
-          // Restore timer from server (e.g. after app restart).
-          // Do NOT overwrite if already running locally (e.g. just scanned START)
-          // to avoid server/device clock drift showing wrong elapsed time.
-          _startTime = openSession.clockInAt.toLocal();
-          _isRunning = true;
-          _seconds = DateTime.now()
-              .difference(_startTime!)
-              .inSeconds
-              .clamp(0, 86400);
-          await _storage.write(
-            key: 'start_time',
-            value: _startTime!.toIso8601String(),
-          );
+        await _applyOpenSession(openSession);
+        await _persistSessionState();
+        if (!(_timer?.isActive ?? false)) {
           _startTimerLoop();
-          await _updateNotification();
         }
-        // If already running locally, keep existing _startTime (avoids clock drift)
+        await _updateNotification();
       } else {
         _timer?.cancel();
-        _notificationsPlugin.cancel(888);
-        _isRunning = false;
-        _seconds = 0;
-        _startTime = null;
-        await _storage.delete(key: 'start_time');
+        await _notificationsPlugin.cancel(888);
+        await _clearSessionState();
       }
     } catch (_) {
-      // Brak sieci/serwera - zostaw lokalny stan timera bez zmian.
+      // Brak sieci - zostaw lokalny stan.
     } finally {
       _isSyncing = false;
       notifyListeners();
@@ -134,10 +371,39 @@ class WorkTimerService extends ChangeNotifier {
     }
   }
 
+  int breakSecondsForLog(WorkLogEntry log) {
+    final cached = _breakTotalsByLogId[log.id];
+    if (cached != null) return cached;
+    if (log.breakStartedAt != null && log.breakEndedAt != null) {
+      return _clampInt(
+          log.breakEndedAt!
+              .difference(log.breakStartedAt!)
+              .inSeconds,
+          0,
+          86400,
+        );
+    }
+    return 0;
+  }
+
+  WorkSessionStats statsForLog(WorkLogEntry log) {
+    final end = log.clockOutAt ?? DateTime.now().toUtc();
+    final totalSeconds = _clampInt(
+      end.difference(log.clockInAt).inSeconds,
+      0,
+      86400 * 365,
+    );
+    final breakSeconds = breakSecondsForLog(log);
+    final workSeconds = _clampInt(totalSeconds - breakSeconds, 0, totalSeconds);
+    return WorkSessionStats(
+      workSeconds: workSeconds,
+      breakSeconds: breakSeconds,
+      totalSeconds: totalSeconds,
+    );
+  }
+
   Future<void> _updateNotification() async {
     if (!_isRunning || _startTime == null) return;
-
-    final int startTimeInMs = _startTime!.millisecondsSinceEpoch;
 
     final androidDetails = AndroidNotificationDetails(
       'work_timer_channel',
@@ -146,30 +412,73 @@ class WorkTimerService extends ChangeNotifier {
       priority: Priority.low,
       ongoing: true,
       onlyAlertOnce: true,
-      showWhen: true,
-      usesChronometer: true,
-      when: startTimeInMs,
+      showWhen: !_isOnBreak,
+      usesChronometer: !_isOnBreak,
+      when: _startTime!.millisecondsSinceEpoch,
     );
 
     await _notificationsPlugin.show(
       888,
-      'Praca w toku',
-      'Twoja sesja jest bezpiecznie zapisana',
+      _isOnBreak ? 'Przerwa w toku' : 'Praca w toku',
+      _isOnBreak
+          ? 'Przerwa: ${formatTime(breakSeconds)}'
+          : 'Sesja: ${formatTime(workSeconds)}',
       NotificationDetails(android: androidDetails),
     );
   }
 
+  Future<void> endActiveSessionForLogout() async {
+    await ensureInitialized();
+
+    if (!_isRunning) {
+      try {
+        final openSession = await _workLogService.getCurrentOpenSession();
+        if (openSession != null) {
+          await _applyOpenSession(openSession);
+        }
+      } catch (_) {
+        return;
+      }
+    }
+
+    if (!_isRunning) {
+      return;
+    }
+
+    final sessionId = _openSessionId;
+    final finalBreakSeconds = _accumulatedBreakSeconds + _currentBreakSegmentSeconds;
+
+    try {
+      if (_isOnBreak) {
+        try {
+          await _workLogService.endBreak();
+        } catch (_) {}
+      }
+      try {
+        await _workLogService.clockOut();
+      } catch (_) {}
+    } finally {
+      await _finalizeLocalSession(
+        sessionId: sessionId,
+        finalBreakSeconds: finalBreakSeconds,
+      );
+      unawaited(refreshHistoryFromBackend());
+    }
+  }
+
   Future<QrActionResult> processQrCode(String code) async {
     final cleanCode = code.trim();
-    if (cleanCode.startsWith("work_start/")) {
+    if (cleanCode.startsWith('work_start/')) {
+      await refreshFromBackend();
       if (_isRunning) {
         return const QrActionResult(
           success: false,
-          message: 'Sesja pracy jest już aktywna.',
+          message:
+              'Sesja pracy jest już aktywna. Zeskanuj kod końca, aby ją zamknąć.',
         );
       }
       return _startWork();
-    } else if (cleanCode.startsWith("work_stop/")) {
+    } else if (cleanCode.startsWith('work_stop/')) {
       if (!_isRunning) {
         await refreshFromBackend();
       }
@@ -181,25 +490,120 @@ class WorkTimerService extends ChangeNotifier {
         );
       }
 
+      if (_isOnBreak) {
+        return const QrActionResult(
+          success: false,
+          message: 'Zakończ przerwę przed zeskanowaniem końca zmiany.',
+        );
+      }
+
       return stopAndSaveWork();
     }
 
     return const QrActionResult(success: false, message: 'Nieznany kod QR.');
   }
 
+  Future<QrActionResult> startBreak() async {
+    if (!_isRunning || _startTime == null) {
+      return const QrActionResult(
+        success: false,
+        message: 'Brak aktywnej sesji pracy.',
+      );
+    }
+    if (_isOnBreak || _isBreakActionInProgress) {
+      return const QrActionResult(
+        success: false,
+        message: 'Przerwa jest już aktywna.',
+      );
+    }
+
+    _isBreakActionInProgress = true;
+    notifyListeners();
+
+    try {
+      final session = await _workLogService.startBreak();
+      _openSessionId = session.id;
+      _isOnBreak = true;
+      _breakStartTime = DateTime.now();
+      if (session.breakStartedAt != null) {
+        _mergeBreakStartFromServer(session.breakStartedAt!);
+      }
+      await _persistSessionState();
+      await _updateNotification();
+      notifyListeners();
+      return const QrActionResult(success: true, message: 'Przerwa rozpoczęta.');
+    } on DioException catch (e) {
+      final message = e.response?.data?['message']?.toString();
+      return QrActionResult(
+        success: false,
+        message: message ?? 'Nie udało się rozpocząć przerwy.',
+      );
+    } catch (_) {
+      return const QrActionResult(
+        success: false,
+        message: 'Nie udało się rozpocząć przerwy.',
+      );
+    } finally {
+      _isBreakActionInProgress = false;
+      notifyListeners();
+    }
+  }
+
+  Future<QrActionResult> endBreak() async {
+    if (!_isRunning) {
+      return const QrActionResult(
+        success: false,
+        message: 'Brak aktywnej sesji pracy.',
+      );
+    }
+    if (!_isOnBreak || _isBreakActionInProgress) {
+      return const QrActionResult(
+        success: false,
+        message: 'Brak aktywnej przerwy.',
+      );
+    }
+
+    _isBreakActionInProgress = true;
+    notifyListeners();
+
+    try {
+      await _workLogService.endBreak();
+      final segmentSeconds = _currentBreakSegmentSeconds;
+      _accumulatedBreakSeconds += segmentSeconds;
+      _isOnBreak = false;
+      _breakStartTime = null;
+      await _persistSessionState();
+      await _updateNotification();
+      notifyListeners();
+      return const QrActionResult(success: true, message: 'Przerwa zakończona.');
+    } on DioException catch (e) {
+      final message = e.response?.data?['message']?.toString();
+      return QrActionResult(
+        success: false,
+        message: message ?? 'Nie udało się zakończyć przerwy.',
+      );
+    } catch (_) {
+      return const QrActionResult(
+        success: false,
+        message: 'Nie udało się zakończyć przerwy.',
+      );
+    } finally {
+      _isBreakActionInProgress = false;
+      notifyListeners();
+    }
+  }
+
   Future<QrActionResult> _startWork() async {
     try {
-      await _workLogService.clockIn();
-      // Start local stopwatch from scan moment to avoid backend/device clock drift.
-      _startTime = DateTime.now();
+      final session = await _workLogService.clockIn();
+      _openSessionId = session.id;
+      _accumulatedBreakSeconds = 0;
+      _isOnBreak = false;
+      _breakStartTime = null;
+      _startTime = _normalizeSessionStart(session.clockInAt);
       _isRunning = true;
-      _seconds = 0;
 
-      await _storage.write(
-        key: 'start_time',
-        value: _startTime!.toIso8601String(),
-      );
-
+      await _persistSessionState();
       _startTimerLoop();
       await _updateNotification();
       await refreshHistoryFromBackend();
@@ -211,6 +615,14 @@ class WorkTimerService extends ChangeNotifier {
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
       if (statusCode == 400) {
+        await refreshFromBackend();
+        if (_isRunning) {
+          return const QrActionResult(
+            success: false,
+            message:
+                'Na serwerze jest już otwarta sesja. Zeskanuj kod końca, aby ją zamknąć.',
+          );
+        }
         return const QrActionResult(
           success: false,
           message: 'Nie można rozpocząć pracy (sesja już aktywna).',
@@ -231,10 +643,12 @@ class WorkTimerService extends ChangeNotifier {
 
   void _startTimerLoop() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_startTime != null) {
-        _seconds = DateTime.now().difference(_startTime!).inSeconds;
         notifyListeners();
+        if (_isOnBreak) {
+          _updateNotification();
+        }
       }
     });
   }
@@ -247,27 +661,67 @@ class WorkTimerService extends ChangeNotifier {
       );
     }
 
+    if (_isOnBreak) {
+      return const QrActionResult(
+        success: false,
+        message: 'Zakończ przerwę przed zakończeniem zmiany.',
+      );
+    }
+
     try {
+      final sessionId = _openSessionId;
+      final finalBreakSeconds = _accumulatedBreakSeconds;
+      final finalWorkSeconds = workSeconds;
+      final finalTotalSeconds = finalWorkSeconds + finalBreakSeconds;
+
       await _workLogService.clockOut();
 
-      _timer?.cancel();
-      _notificationsPlugin.cancel(888);
-
-      await _storage.delete(key: 'start_time');
-
-      await refreshHistoryFromBackend();
-
-      _isRunning = false;
-      _seconds = 0;
-      _startTime = null;
-      notifyListeners();
-      return const QrActionResult(
+      final successMessage = QrActionResult(
         success: true,
-        message: 'Koniec pracy zapisany w bazie.',
+        message:
+            'Koniec pracy zapisany. '
+            'Czas pracy: ${formatTime(finalWorkSeconds)}, '
+            'Czas przerwy: ${formatTime(finalBreakSeconds)}, '
+            'Całkowity czas: ${formatTime(finalTotalSeconds)}.',
       );
+
+      await _finalizeLocalSession(
+        sessionId: sessionId,
+        finalBreakSeconds: finalBreakSeconds,
+      );
+
+      unawaited(refreshHistoryFromBackend());
+
+      return successMessage;
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
       if (statusCode == 400) {
+        final message = e.response?.data?['message']?.toString();
+        if (message == 'End break first') {
+          return const QrActionResult(
+            success: false,
+            message: 'Zakończ przerwę przed zakończeniem zmiany.',
+          );
+        }
+        if (message == 'No open session') {
+          final sessionId = _openSessionId;
+          final finalBreakSeconds = _accumulatedBreakSeconds;
+          final finalWorkSeconds = workSeconds;
+          final finalTotalSeconds = finalWorkSeconds + finalBreakSeconds;
+          await _finalizeLocalSession(
+            sessionId: sessionId,
+            finalBreakSeconds: finalBreakSeconds,
+          );
+          unawaited(refreshHistoryFromBackend());
+          return QrActionResult(
+            success: true,
+            message:
+                'Sesja była już zamknięta na serwerze. '
+                'Czas pracy: ${formatTime(finalWorkSeconds)}, '
+                'Czas przerwy: ${formatTime(finalBreakSeconds)}, '
+                'Całkowity czas: ${formatTime(finalTotalSeconds)}.',
+          );
+        }
         return const QrActionResult(
           success: false,
           message: 'Nie można zakończyć pracy (brak otwartej sesji).',
@@ -288,10 +742,11 @@ class WorkTimerService extends ChangeNotifier {
 
   String formatDateTime(DateTime dt) =>
       "${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+
   String formatTime(int totalSeconds) {
-    int h = totalSeconds ~/ 3600;
-    int m = (totalSeconds % 3600) ~/ 60;
-    int s = totalSeconds % 60;
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
+    final s = totalSeconds % 60;
     return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
   }
 }

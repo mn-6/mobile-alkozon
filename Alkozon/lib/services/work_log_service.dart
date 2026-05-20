@@ -69,6 +69,16 @@ class WorkLogService {
     return WorkLogEntry.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<WorkLogEntry> startBreak() async {
+    final response = await _authorizedPost('/work-log/break/start');
+    return WorkLogEntry.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<WorkLogEntry> endBreak() async {
+    final response = await _authorizedPost('/work-log/break/end');
+    return WorkLogEntry.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<List<WorkLogEntry>> getMyLogs({
     required DateTime from,
     required DateTime to,

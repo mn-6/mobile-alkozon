@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/inventory_service.dart';
 import '../services/order_service.dart';
+import '../widgets/horizontal_scroll_text.dart';
 import '../widgets/product_thumbnail.dart';
 import 'order_navigation_map_screen.dart';
 
@@ -14,6 +16,7 @@ class OrderDetailScreen extends StatefulWidget {
 
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   final OrderService _orderService = OrderService();
+  final InventoryService _inventoryService = InventoryService();
   static const List<String> _flow = [
     'SUBMITTED',
     'IN_PRODUCTION',
@@ -21,8 +24,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     'IN_DELIVERY',
     'DELIVERED',
   ];
-  late String _currentStatus;
-  late List<String> _availableStatuses;
   bool _isSaving = false;
 
   bool get _isFinalStatus =>
@@ -31,36 +32,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool get _isNavigationMode =>
       !widget.order.isCustomOrder && widget.order.status == 'IN_DELIVERY';
 
-  bool get _canChangeStatus =>
-      !_isFinalStatus && !_isNavigationMode && _availableStatuses.length > 1;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final initialStatus = widget.order.status;
-    _availableStatuses = _nextStatusesFor(initialStatus);
-    _currentStatus = _availableStatuses.contains(initialStatus)
-        ? initialStatus
-        : _availableStatuses.first;
+  String? get _nextStatus {
+    if (_isFinalStatus || _isNavigationMode) return null;
+    final index = _flow.indexOf(widget.order.status);
+    if (index < 0 || index >= _flow.length - 1) return null;
+    return _flow[index + 1];
   }
 
-  List<String> _nextStatusesFor(String currentStatus) {
-    if (currentStatus == 'CANCELLED') {
-      return const ['CANCELLED'];
-    }
-    final index = _flow.indexOf(currentStatus);
-    if (index < 0) {
-      return const [
-        'SUBMITTED',
-        'IN_PRODUCTION',
-        'IN_PACKING',
-        'IN_DELIVERY',
-        'DELIVERED',
-      ];
-    }
-    return _flow.sublist(index);
-  }
+  bool get _canAdvanceStatus => _nextStatus != null;
 
   String _statusLabel(String status) {
     switch (status) {
@@ -140,26 +119,87 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     return '$day.$month.$year $hour:$minute';
   }
 
-  Future<void> _saveStatus() async {
+  Future<bool> _confirmStandardAdvance(String nextStatus) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Potwierdzenie'),
+        content: Text(
+          'Przenieść zamówienie ${widget.order.displayNumber} na etap ${_statusLabel(nextStatus)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Nie'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Tak'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<bool> _confirmCustomProductionAdvance() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Produkt specjalny'),
+        content: const Text(
+          'Uwaga! Produkt specjalny. Przed zmianą statusu upewnij się, '
+          'że ręcznie zmieniłeś ilość zużytych produktów w zakładce Stany Magazynowe.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Potwierdź'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  bool get _shouldDeductInventory =>
+      !widget.order.isCustomOrder &&
+      widget.order.status == 'SUBMITTED';
+
+  Future<void> _deductInventoryForProduction() async {
+    for (final item in widget.order.items) {
+      await _inventoryService.consumeProductById(
+        productId: item.productId,
+        quantity: item.quantity,
+      );
+    }
+  }
+
+  Future<void> _advanceStatus(String nextStatus) async {
     if (_isSaving) return;
-    if (!_canChangeStatus) return;
-    if (_currentStatus == widget.order.status) return;
 
     setState(() {
       _isSaving = true;
     });
 
     try {
-      final updated =
-          widget.order.isCustomOrder
-              ? await _orderService.patchCustomStatus(
-                id: widget.order.id,
-                status: _currentStatus,
-              )
-              : await _orderService.patchStatus(
-                id: widget.order.id,
-                status: _currentStatus,
-              );
+      if (_shouldDeductInventory && nextStatus == 'IN_PRODUCTION') {
+        await _deductInventoryForProduction();
+      }
+
+      final updated = widget.order.isCustomOrder
+          ? await _orderService.patchCustomStatus(
+              id: widget.order.id,
+              status: nextStatus,
+            )
+          : await _orderService.patchStatus(
+              id: widget.order.id,
+              status: nextStatus,
+            );
       if (!mounted) return;
       Navigator.pop(context, updated);
     } catch (e) {
@@ -179,9 +219,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
+  Future<void> _onNextStepPressed() async {
+    final nextStatus = _nextStatus;
+    if (nextStatus == null || _isSaving) return;
+
+    final isCustomProductionStep = widget.order.isCustomOrder &&
+        widget.order.status == 'SUBMITTED' &&
+        nextStatus == 'IN_PRODUCTION';
+
+    final confirmed = isCustomProductionStep
+        ? await _confirmCustomProductionAdvance()
+        : await _confirmStandardAdvance(nextStatus);
+
+    if (!confirmed || !mounted) return;
+    await _advanceStatus(nextStatus);
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color themeColor = Colors.greenAccent;
+    final nextStatus = _nextStatus;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
@@ -416,53 +474,43 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ] else if (_canChangeStatus) ...[
-              const Text(
-                'Zmień status zamówienia:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 12),
+            ] else if (_canAdvanceStatus) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _currentStatus,
-                    isExpanded: true,
-                    icon: const Icon(
-                      Icons.arrow_drop_down_circle_outlined,
-                      color: Colors.green,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Aktualny etap: ${_statusLabel(widget.order.status)}',
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    items: _availableStatuses.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(_statusLabel(value)),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      if (newValue != null) {
-                        setState(() => _currentStatus = newValue);
-                      }
-                    },
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Następny etap: ${_statusLabel(nextStatus!)}',
+                      style: const TextStyle(
+                        color: Color(0xFF1E293B),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 55,
-                child: ElevatedButton(
-                  onPressed: _isSaving || _currentStatus == widget.order.status
-                      ? null
-                      : _saveStatus,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _onNextStepPressed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(
@@ -470,7 +518,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                     elevation: 0,
                   ),
-                  child: _isSaving
+                  icon: _isSaving
                       ? const SizedBox(
                           width: 22,
                           height: 22,
@@ -479,14 +527,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Text(
-                          'ZAPISZ ZMIANY',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : const Icon(Icons.arrow_forward_rounded,
+                          color: Colors.white),
+                  label: Text(
+                    _isSaving ? 'Przenoszenie...' : 'Kolejny krok',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ] else ...[
@@ -544,12 +594,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: Text(
-                      row.value,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: Color(0xFF1E293B),
-                        fontWeight: FontWeight.bold,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: HorizontalScrollText(
+                        text: row.value,
+                        style: const TextStyle(
+                          color: Color(0xFF1E293B),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

@@ -143,6 +143,26 @@ class InventoryService {
     return _changeQuantity(item, -amount.abs());
   }
 
+  Future<void> consumeProductById({
+    required int productId,
+    required int quantity,
+  }) async {
+    if (quantity <= 0) return;
+
+    final overview = await getInventory();
+    InventoryItem? product;
+    for (final item in overview.products) {
+      if (item.productId == productId) {
+        product = item;
+        break;
+      }
+    }
+    if (product == null) {
+      throw Exception('Brak pozycji magazynowej dla produktu ID $productId');
+    }
+    await consumeQuantity(product, quantity);
+  }
+
   Future<InventoryItem> _changeQuantity(InventoryItem item, int delta) async {
     final token = await _authService.getToken();
     if (token == null) {

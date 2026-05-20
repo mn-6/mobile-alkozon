@@ -55,6 +55,8 @@ class ForgotPassword extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               TextField(
+                maxLines: 1,
+                keyboardType: TextInputType.emailAddress,
                 decoration: _inputDecoration("Wpisz swój email", Icons.mail_outline),
               ),
 

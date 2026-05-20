@@ -21,7 +21,12 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _requestPermissions();
-    timerService.refreshFromBackend();
+    _bootstrapTimer();
+  }
+
+  Future<void> _bootstrapTimer() async {
+    await timerService.ensureInitialized();
+    await timerService.refreshFromBackend();
   }
 
   @override
@@ -33,7 +38,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      timerService.refreshFromBackend();
+      timerService.onAppResumed();
     }
   }
 
@@ -41,6 +46,24 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
     if (await Permission.notification.isDenied) {
       await Permission.notification.request();
     }
+  }
+
+  Future<void> _showSnack(String message, {required bool success}) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: success ? Colors.green.shade700 : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _handleBreakAction(Future<QrActionResult> Function() action) async {
+    if (timerService.isBreakActionInProgress) return;
+    final result = await action();
+    await _showSnack(result.message, success: result.success);
   }
 
   @override
@@ -101,7 +124,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
   }
 
   Widget _buildTimerTab() {
-    if (!timerService.isRunning && timerService.seconds == 0) {
+    if (!timerService.isRunning) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -122,6 +145,12 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
       );
     }
 
+    final onBreak = timerService.isOnBreak;
+    final workColor = onBreak ? const Color(0xFF94A3B8) : const Color(0xFF1E293B);
+    final breakColor = timerService.isCurrentBreakOverLimit
+        ? Colors.redAccent
+        : Colors.orange.shade700;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -131,40 +160,119 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
             Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(
-                color: Colors.green,
+              decoration: BoxDecoration(
+                color: onBreak ? Colors.orange : Colors.green,
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 8),
-            const Text(
-              "SESJA AKTYWNA",
+            Text(
+              onBreak ? "PRZERWA" : "SESJA AKTYWNA",
               style: TextStyle(
-                color: Colors.green,
+                color: onBreak ? Colors.orange.shade800 : Colors.green,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         Text(
-          timerService.formatTime(timerService.seconds),
-          style: const TextStyle(
-            fontSize: 72,
+          onBreak ? "Czas pracy (wstrzymany)" : "Czas pracy",
+          style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          timerService.formatTime(timerService.workSeconds),
+          style: TextStyle(
+            fontSize: onBreak ? 48 : 72,
             fontWeight: FontWeight.bold,
             letterSpacing: 2,
-            color: Color(0xFF1E293B),
+            color: workColor,
           ),
         ),
-        const SizedBox(height: 60),
+        if (onBreak) ...[
+          const SizedBox(height: 28),
+          Text(
+            "Czas przerwy",
+            style: TextStyle(
+              color: breakColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            timerService.formatTime(timerService.breakSeconds),
+            style: TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+              color: breakColor,
+            ),
+          ),
+          if (timerService.isCurrentBreakOverLimit)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                "Przerwa przekroczyła 15 minut",
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+        ],
+        const SizedBox(height: 40),
+        if (onBreak)
+          _buildBreakControlButton(
+            label: "KONIEC PRZERWY",
+            icon: Icons.play_arrow_rounded,
+            color: Colors.green,
+            onTap: timerService.isBreakActionInProgress
+                ? null
+                : () => _handleBreakAction(timerService.endBreak),
+          )
+        else
+          _buildBreakControlButton(
+            label: "PRZERWA",
+            icon: Icons.free_breakfast_outlined,
+            color: Colors.orange.shade700,
+            onTap: timerService.isBreakActionInProgress
+                ? null
+                : () => _handleBreakAction(timerService.startBreak),
+          ),
+        const SizedBox(height: 36),
         _buildActionButton(
           icon: Icons.stop_circle_outlined,
           label: "SKANUJ KONIEC",
           color: Colors.redAccent,
-          onTap: () => _openScanner(context),
+          onTap: onBreak ? null : () => _openScanner(context),
         ),
       ],
+    );
+  }
+
+  Widget _buildBreakControlButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      width: 220,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
     );
   }
 
@@ -226,12 +334,10 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
 
                         Navigator.pop(modalContext);
 
-                        // Use screenContext (not modalContext) because modal is already
-                        // popped and its context is deactivated.
                         ScaffoldMessenger.of(screenContext).showSnackBar(
                           SnackBar(
                             content: Text(result.message),
-                            duration: const Duration(seconds: 1),
+                            duration: const Duration(seconds: 2),
                             behavior: SnackBarBehavior.floating,
                             backgroundColor: result.success
                                 ? Colors.green.shade700
@@ -263,7 +369,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return Column(
       children: [
@@ -272,15 +378,18 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(50),
-            child: Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withOpacity(0.3), width: 2),
+            child: Opacity(
+              opacity: onTap == null ? 0.4 : 1,
+              child: Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withOpacity(0.3), width: 2),
+                ),
+                child: Icon(icon, size: 40, color: color),
               ),
-              child: Icon(icon, size: 40, color: color),
             ),
           ),
         ),
@@ -361,10 +470,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
           final item = history[index];
           final start = item.clockInAt.toLocal();
           final end = item.clockOutAt?.toLocal();
-          final durationSeconds = (end ?? DateTime.now())
-              .difference(start)
-              .inSeconds
-              .clamp(0, 365 * 24 * 3600);
+          final stats = timerService.statsForLog(item);
 
           return Card(
             elevation: 0,
@@ -380,8 +486,8 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
               ),
               title: Text(
                 end == null
-                    ? 'Sesja aktywna: ${timerService.formatTime(durationSeconds)}'
-                    : 'Łącznie: ${timerService.formatTime(durationSeconds)}',
+                    ? 'Sesja aktywna'
+                    : 'Zmiana zakończona',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: end == null ? Colors.green : Colors.blueAccent,
@@ -390,6 +496,23 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 6),
+                  Text(
+                    'Czas pracy: ${timerService.formatTime(stats.workSeconds)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  Text(
+                    'Czas przerwy: ${timerService.formatTime(stats.breakSeconds)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  Text(
+                    'Całkowity czas: ${timerService.formatTime(stats.totalSeconds)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'Start: ${timerService.formatDateTime(start)}',
