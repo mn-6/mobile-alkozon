@@ -4,6 +4,7 @@ import 'package:alkozon/screens/forgot_password_screen.dart';
 import 'package:alkozon/services/auth_service.dart';
 import 'package:alkozon/services/notification_service.dart';
 import 'package:alkozon/services/product_image_resolver.dart';
+import 'package:alkozon/services/order_realtime_service.dart';
 import 'package:alkozon/services/startup_warmup_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/security_service.dart'; // IMPORT Twojego nowego serwisu
@@ -172,6 +173,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) {
       if (result['success']) {
         await _notificationService.onAuthenticated();
+        await OrderRealtimeService.instance.connectForCurrentUser(
+          authService: _authService,
+        );
         // Logowanie udane - przejdź do Dashboard
         if (mounted) {
           Navigator.pushNamedAndRemoveUntil(

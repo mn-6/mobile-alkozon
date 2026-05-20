@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/order_realtime_service.dart';
 import '../services/order_service.dart';
 import '../widgets/product_thumbnail.dart';
 import 'order_detail_screen.dart';
@@ -37,15 +38,26 @@ class _OrdersScreenState extends State<OrdersScreen> {
   String _idFilter = '';
   String _statusFilter = 'ALL';
   bool _sortNewestFirst = true;
+  late final VoidCallback _realtimeReloadListener;
 
   @override
   void initState() {
     super.initState();
     _ordersFuture = _loadData();
+    _realtimeReloadListener = () {
+      if (!mounted) {
+        return;
+      }
+      _reload();
+    };
+    OrderRealtimeService.instance.addOrderReloadListener(_realtimeReloadListener);
   }
 
   @override
   void dispose() {
+    OrderRealtimeService.instance.removeOrderReloadListener(
+      _realtimeReloadListener,
+    );
     _idFilterController.dispose();
     super.dispose();
   }

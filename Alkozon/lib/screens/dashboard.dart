@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../services/order_realtime_service.dart';
 import 'notifications_screen.dart';
 import 'work_time_screen.dart';
 import 'inventory_screen.dart';
@@ -25,6 +26,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadUserDisplayName();
     _notificationService.initialize();
     _notificationService.onAuthenticated();
+    OrderRealtimeService.instance.connectForCurrentUser(authService: _authService);
     Future<void>.delayed(Duration.zero, () {
       _notificationService.processPendingNavigation();
     });

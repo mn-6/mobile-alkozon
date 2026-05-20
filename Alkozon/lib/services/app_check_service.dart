@@ -53,8 +53,8 @@ class AppCheckService {
 
     if (response.statusCode == 403) {
       throw StateError(
-        'Aplikacja nie przeszła weryfikacji bezpieczeństwa. '
-        'Zainstaluj oficjalną wersję z Play Store lub skontaktuj się z administratorem.',
+        'Aplikacja nie przeszła weryfikacji bezpieczeństwa (certyfikat APK). '
+        'Przekaż administratorowi SHA-256 podpisu: $signingCertSha256',
       );
     }
 

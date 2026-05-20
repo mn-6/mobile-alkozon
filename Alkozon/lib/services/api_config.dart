@@ -32,4 +32,9 @@ class ApiConfig {
           : (_appEnv == 'local'
               ? 'ws://localhost:8080/ws'
               : 'wss://api-alcozon.onrender.com/ws');
+
+  static bool get isLocal =>
+      _apiBaseUrlOverride.isEmpty && _appEnv == 'local';
+
+  static bool get isProduction => !isLocal;
 }

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/order_realtime_event.dart';
 import '../screens/order_screen.dart';
 import 'api_config.dart';
 import 'auth_service.dart';
@@ -129,6 +130,7 @@ class AppNotification {
     if ({
       'NEW_ORDER',
       'ORDER_CREATED',
+      'ORDER_SUBMITTED',
       'NEWORDER',
       'ORDER_NEW',
     }.contains(normalized)) {
@@ -349,6 +351,16 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearAllNotifications() async {
+    if (_notifications.isEmpty) {
+      return;
+    }
+
+    _notifications.clear();
+    await _persistNotifications();
+    notifyListeners();
+  }
+
   Future<void> markAsRead(String id) async {
     final index = _notifications.indexWhere((item) => item.id == id);
     if (index < 0 || _notifications[index].isRead) {
@@ -411,6 +423,65 @@ class NotificationService extends ChangeNotifier {
       await _showLocalNotification(stored);
     }
     return stored;
+  }
+
+  /// Historia + opcjonalny baner z WebSocket (STOMP), gdy backend nie wysyła FCM.
+  Future<AppNotification?> ingestRealtimeEvent(
+    OrderRealtimeEvent event, {
+    bool showForegroundBanner = false,
+  }) async {
+    final incoming = _notificationFromRealtimeEvent(event);
+    if (incoming == null) {
+      return null;
+    }
+
+    final stored = await _storeNotification(incoming);
+    if (showForegroundBanner) {
+      await _showLocalNotification(stored);
+    }
+    notifyListeners();
+    return stored;
+  }
+
+  AppNotification? _notificationFromRealtimeEvent(OrderRealtimeEvent event) {
+    if (!event.shouldShowInNotificationCenter) {
+      return null;
+    }
+
+    final AppNotificationType type;
+    final String title;
+    final String body;
+
+    switch (event.type) {
+      case OrderRealtimeEventType.orderSubmitted:
+        type = AppNotificationType.newOrder;
+        title = 'Wpłynęło nowe zamówienie!';
+        body = 'Zamówienie ${event.clientOrderNumber} — do realizacji';
+      case OrderRealtimeEventType.deliveryAssigned:
+        type = AppNotificationType.deliveryAssignment;
+        title = 'Nowa wysyłka czeka!';
+        body = 'Zamówienie ${event.clientOrderNumber} — adres w aplikacji';
+      case OrderRealtimeEventType.dispatchPending:
+        type = AppNotificationType.unknown;
+        title = 'Gotowe do wysyłki';
+        body = 'Zamówienie ${event.clientOrderNumber} — przypisz kuriera';
+      case OrderRealtimeEventType.orderStatusChanged:
+      case OrderRealtimeEventType.orderDelivered:
+      case OrderRealtimeEventType.orderCancelled:
+      case OrderRealtimeEventType.unknown:
+        return null;
+    }
+
+    final createdAt = DateTime.now();
+    return AppNotification(
+      id: 'stomp-${event.type.name}-${event.orderId}-${createdAt.millisecondsSinceEpoch}',
+      type: type,
+      title: title,
+      body: body,
+      createdAt: createdAt,
+      isRead: false,
+      orderId: event.orderId,
+    );
   }
 
   static Future<void> persistRemoteMessage(RemoteMessage message) async {
@@ -602,15 +673,25 @@ class NotificationService extends ChangeNotifier {
     };
 
     try {
-      await _dio.post(
+      final response = await _dio.post(
         _tokenRegisterPath,
         data: payload,
         options: Options(
           headers: {'Authorization': 'Bearer $authToken'},
+          validateStatus: (_) => true,
         ),
       );
-    } catch (_) {
-      // Rejestracja tokena jest opcjonalnym kontraktem backendowym.
+      if (response.statusCode != null &&
+          response.statusCode! >= 200 &&
+          response.statusCode! < 300) {
+        debugPrint('FCM token zarejestrowany na backendzie.');
+      } else {
+        debugPrint(
+          'FCM token: backend zwrocil ${response.statusCode} (sprawdz FIREBASE_SERVICE_ACCOUNT_JSON po stronie API).',
+        );
+      }
+    } catch (error) {
+      debugPrint('FCM token: rejestracja nieudana: $error');
     }
   }
 

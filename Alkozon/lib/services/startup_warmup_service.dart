@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'api_config.dart';
 import 'app_check_service.dart';
@@ -8,8 +9,12 @@ class StartupWarmupService {
     : _dio = Dio(
         BaseOptions(
           baseUrl: ApiConfig.baseUrl,
-          connectTimeout: const Duration(seconds: 8),
-          receiveTimeout: const Duration(seconds: 8),
+          connectTimeout: ApiConfig.isLocal
+              ? const Duration(seconds: 8)
+              : const Duration(seconds: 30),
+          receiveTimeout: ApiConfig.isLocal
+              ? const Duration(seconds: 8)
+              : const Duration(seconds: 30),
         ),
       ),
       _appCheckService = AppCheckService();
@@ -19,10 +24,18 @@ class StartupWarmupService {
   bool _appCheckSubmitted = false;
 
   Future<void> waitForServerReady({
-    Duration retryDelay = const Duration(seconds: 2),
-    Duration timeout = const Duration(seconds: 60),
+    Duration? retryDelay,
+    Duration? timeout,
   }) async {
-    final deadline = DateTime.now().add(timeout);
+    final effectiveRetryDelay = retryDelay ??
+        (ApiConfig.isLocal
+            ? const Duration(seconds: 2)
+            : const Duration(seconds: 3));
+    final effectiveTimeout = timeout ??
+        (ApiConfig.isLocal
+            ? const Duration(seconds: 60)
+            : const Duration(seconds: 120));
+    final deadline = DateTime.now().add(effectiveTimeout);
 
     while (DateTime.now().isBefore(deadline)) {
       try {
@@ -43,12 +56,16 @@ class StartupWarmupService {
         }
       }
 
-      await Future<void>.delayed(retryDelay);
+      await Future<void>.delayed(effectiveRetryDelay);
     }
 
+    final hint = ApiConfig.isLocal
+        ? 'Uruchom API na porcie 8080 i podłącz telefon USB: adb reverse tcp:8080 tcp:8080'
+        : 'Serwer produkcyjny (Render) mógł się usypiać — poczekaj chwilę i spróbuj ponownie. '
+            'Sprawdź też połączenie z internetem.';
+
     throw StateError(
-      'Backend nie odpowiada pod ${ApiConfig.baseUrl}. '
-      'Uruchom API (port 8080) i na telefonie USB: adb reverse tcp:8080 tcp:8080',
+      'Backend nie odpowiada pod ${ApiConfig.baseUrl}.\n$hint',
     );
   }
 
@@ -57,6 +74,13 @@ class StartupWarmupService {
       return;
     }
     _appCheckSubmitted = true;
-    await _appCheckService.submitAppCheck();
+
+    try {
+      await _appCheckService.submitAppCheck();
+    } catch (error, stackTrace) {
+      // Nie blokuj logowania — cert sideloadowanego APK może nie być jeszcze na allowliście.
+      debugPrint('App-check pominięty: $error');
+      debugPrint('$stackTrace');
+    }
   }
 }

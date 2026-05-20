@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_config.dart';
+import 'order_realtime_service.dart';
 
 class AuthService {
   static const String _apiUrl = ApiConfig.baseUrl;
@@ -156,6 +157,7 @@ class AuthService {
 
   // Wyloguj
   Future<void> logout() async {
+    await OrderRealtimeService.instance.disconnect();
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
     await _secureStorage.delete(key: _firstNameKey);

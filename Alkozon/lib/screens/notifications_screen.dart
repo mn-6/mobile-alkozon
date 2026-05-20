@@ -53,11 +53,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          TextButton(
-            onPressed: _notificationService.unreadCount == 0
-                ? null
-                : () => _notificationService.markAllAsRead(),
-            child: const Text('Oznacz wszystkie'),
+          AnimatedBuilder(
+            animation: _notificationService,
+            builder: (context, _) {
+              final hasNotifications =
+                  _notificationService.notifications.isNotEmpty;
+              return TextButton(
+                onPressed: hasNotifications
+                    ? () => _notificationService.clearAllNotifications()
+                    : null,
+                child: const Text('Wyczyść powiadomienia'),
+              );
+            },
           ),
         ],
       ),
