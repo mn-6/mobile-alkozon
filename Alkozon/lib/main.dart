@@ -5,6 +5,7 @@ import 'package:alkozon/services/auth_service.dart';
 import 'package:alkozon/services/notification_service.dart';
 import 'package:alkozon/services/product_image_resolver.dart';
 import 'package:alkozon/services/startup_warmup_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/security_service.dart'; // IMPORT Twojego nowego serwisu
 
 void main() async {
@@ -124,10 +125,12 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   final NotificationService _notificationService = NotificationService.instance;
+  static const String _cachedLoginEmailKey = 'cached_login_email';
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
   late TextEditingController _codeController;
   bool _isLoading = false;
+  bool _isPasswordVisibleWhilePressed = false;
   String? _errorMessage;
   String? _infoMessage;
   bool _requiresTwoFactor = false;
@@ -139,6 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
     _codeController = TextEditingController();
+    _loadCachedEmail();
   }
 
   @override
@@ -150,6 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    await _cacheEmail(_emailController.text.trim());
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -193,6 +199,26 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _loadCachedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedEmail = prefs.getString(_cachedLoginEmailKey)?.trim();
+    if (cachedEmail == null || cachedEmail.isEmpty) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _emailController.text = cachedEmail;
+  }
+
+  Future<void> _cacheEmail(String email) async {
+    if (email.isEmpty) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cachedLoginEmailKey, email);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -204,17 +230,13 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 128),
               Center(
-                child: Container(
-                  height: 60,
-                  width: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.bolt,
-                    color: Colors.blueAccent,
-                    size: 32,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'lib/imgs/logo.jpg',
+                    height: 72,
+                    width: 72,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
@@ -280,8 +302,34 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _passwordController,
                 enabled: !_isLoading,
-                obscureText: true,
-                decoration: _inputDecoration("••••••••", Icons.lock_outline),
+                obscureText: !_isPasswordVisibleWhilePressed,
+                decoration: _inputDecoration(
+                  "••••••••",
+                  Icons.lock_outline,
+                  suffixIcon: GestureDetector(
+                    onTapDown: (_) {
+                      setState(() {
+                        _isPasswordVisibleWhilePressed = true;
+                      });
+                    },
+                    onTapUp: (_) {
+                      setState(() {
+                        _isPasswordVisibleWhilePressed = false;
+                      });
+                    },
+                    onTapCancel: () {
+                      setState(() {
+                        _isPasswordVisibleWhilePressed = false;
+                      });
+                    },
+                    child: Icon(
+                      _isPasswordVisibleWhilePressed
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ),
               ),
               if (_requiresTwoFactor) ...[
                 const SizedBox(height: 20),
@@ -371,12 +419,17 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint, IconData icon) {
+  InputDecoration _inputDecoration(
+    String hint,
+    IconData icon, {
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       filled: true,
       fillColor: Colors.white,
       hintText: hint,
       prefixIcon: Icon(icon, color: const Color(0xFF94A3B8)),
+      suffixIcon: suffixIcon,
       contentPadding: const EdgeInsets.symmetric(vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),

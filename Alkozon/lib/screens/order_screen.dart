@@ -32,7 +32,11 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   final OrderService _orderService = OrderService();
   late Future<_OrdersViewData> _ordersFuture;
+  final TextEditingController _idFilterController = TextEditingController();
   bool _initialOrderHandled = false;
+  String _idFilter = '';
+  String _statusFilter = 'ALL';
+  bool _sortNewestFirst = true;
 
   @override
   void initState() {
@@ -40,20 +44,32 @@ class _OrdersScreenState extends State<OrdersScreen> {
     _ordersFuture = _loadData();
   }
 
+  @override
+  void dispose() {
+    _idFilterController.dispose();
+    super.dispose();
+  }
+
   Future<_OrdersViewData> _loadData() async {
-    final allOrders = await _orderService.getAllOrders();
+    final staffCombined = await _orderService.getStaffCombinedOrders();
+    final allOrders = staffCombined.shopOrders;
+    final customOrders = staffCombined.customOrders;
+    final combined = [...allOrders, ...customOrders]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final assignedOrders = await _orderService.getMyDeliveryOrders(
       onlyInDelivery: false,
     );
 
-    final active = allOrders.where(_isActive).toList();
+    final active = combined.where(_isActive).toList();
     final deliveryOrders = assignedOrders.where(
       (o) => o.status == 'IN_DELIVERY',
     );
 
     final finishedMap = <int, OrderData>{
-      for (final order in allOrders.where(_isFinished)) order.id: order,
-      for (final order in assignedOrders.where(_isFinished)) order.id: order,
+      for (final order in combined.where(_isFinished))
+        _orderKey(order): order,
+      for (final order in assignedOrders.where(_isFinished))
+        _orderKey(order): order,
     };
     final finished = finishedMap.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -84,6 +100,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
+  int _orderKey(OrderData order) {
+    return order.isCustomOrder ? -order.id : order.id;
+  }
+
   bool _isActive(OrderData order) {
     return order.status != 'CANCELLED' &&
         order.status != 'DELIVERED' &&
@@ -111,6 +131,154 @@ class _OrdersScreenState extends State<OrdersScreen> {
       default:
         return status;
     }
+  }
+
+  List<String> get _statusFilterOptions => const [
+    'ALL',
+    'SUBMITTED',
+    'IN_PRODUCTION',
+    'IN_PACKING',
+    'IN_DELIVERY',
+    'DELIVERED',
+    'CANCELLED',
+  ];
+
+  bool _matchesIdFilter(OrderData order) {
+    final query = _idFilter.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+
+    return order.id.toString().contains(query) ||
+        order.displayNumber.toLowerCase().contains(query);
+  }
+
+  List<OrderData> _applyFilters(List<OrderData> source) {
+    final filtered = source.where((order) {
+      if (!_matchesIdFilter(order)) {
+        return false;
+      }
+      if (_statusFilter != 'ALL' && order.status != _statusFilter) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final cmp = a.createdAt.compareTo(b.createdAt);
+      return _sortNewestFirst ? -cmp : cmp;
+    });
+
+    return filtered;
+  }
+
+  Widget _buildFiltersBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      child: Column(
+        children: [
+          TextField(
+            controller: _idFilterController,
+            onChanged: (value) {
+              setState(() {
+                _idFilter = value;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Filtruj po ID / numerze zamówienia',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _statusFilter,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Status',
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  items: _statusFilterOptions
+                      .map(
+                        (status) => DropdownMenuItem(
+                          value: status,
+                          child: Text(
+                            status == 'ALL' ? 'Wszystkie' : _statusLabel(status),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _statusFilter = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<bool>(
+                  initialValue: _sortNewestFirst,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Sortowanie',
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: true,
+                      child: Text('Od najnowszych'),
+                    ),
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('Od najstarszych'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _sortNewestFirst = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _maybeOpenInitialOrder(_OrdersViewData data) {
@@ -209,6 +377,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             length: 3,
             child: Column(
               children: [
+                _buildFiltersBar(),
                 const TabBar(
                   labelColor: Colors.green,
                   unselectedLabelColor: Color(0xFF64748B),
@@ -222,9 +391,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _buildOrderList(data.active),
-                      _buildOrderList(data.finished),
-                      _buildOrderList(data.delivery),
+                      _buildOrderList(_applyFilters(data.active)),
+                      _buildOrderList(_applyFilters(data.finished)),
+                      _buildOrderList(_applyFilters(data.delivery)),
                     ],
                   ),
                 ),
@@ -265,7 +434,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
         itemBuilder: (context, index) {
           final order = orders[index];
           final productsLabel = order.items.isEmpty
-              ? 'Brak pozycji'
+              ? (order.description?.trim().isNotEmpty == true
+                    ? order.description!.trim()
+                    : 'Brak pozycji')
               : order.items.first.productName;
           return GestureDetector(
             onTap: () => _navigateToDetail(context, order),
@@ -291,7 +462,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Zamówienie ${order.displayNumber}',
+                            '${order.isCustomOrder ? 'Zlecenie specjalne' : 'Zamówienie'} ${order.displayNumber}',
                             style: const TextStyle(
                               fontSize: 13,
                               color: Colors.green,

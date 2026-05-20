@@ -73,6 +73,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - lib/imgs/logo.jpg
     - lib/imgs/products/beer/Bernard Świąteczny.png
     - lib/imgs/products/beer/Browar Jabłonowo.png
     - lib/imgs/products/beer/Cieszyn Wheat.png

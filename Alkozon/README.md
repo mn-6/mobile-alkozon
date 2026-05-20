@@ -15,3 +15,14 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Run modes (prod/local)
+
+- Production (default):
+  - `flutter run`
+- Local backend test:
+  - `flutter run --dart-define=APP_ENV=local`
+
+For physical Android device with local backend, use adb reverse first:
+
+- `adb reverse tcp:8080 tcp:8080`

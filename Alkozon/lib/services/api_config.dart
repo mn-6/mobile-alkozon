@@ -1,14 +1,35 @@
 class ApiConfig {
-  // Domyślnie produkcyjny backend na Render.
-  // Lokalnie można nadpisać przez --dart-define=API_BASE_URL=...
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'https://api-alcozon.onrender.com/api',
+  // APP_ENV:
+  // - prod  -> Render (domyślnie)
+  // - local -> localhost:8080 (pod adb reverse dla fizycznego telefonu)
+  static const String _appEnv = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'prod',
   );
 
-  // Lokalnie można nadpisać przez --dart-define=WS_URL=...
-  static const String webSocketUrl = String.fromEnvironment(
-    'WS_URL',
-    defaultValue: 'wss://api-alcozon.onrender.com/ws',
+  // Można też wymusić własny URL przez --dart-define=API_BASE_URL=...
+  static const String _apiBaseUrlOverride = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: '',
   );
+
+  // Można też wymusić własny WS URL przez --dart-define=WS_URL=...
+  static const String _wsUrlOverride = String.fromEnvironment(
+    'WS_URL',
+    defaultValue: '',
+  );
+
+  static const String baseUrl =
+      _apiBaseUrlOverride != ''
+          ? _apiBaseUrlOverride
+          : (_appEnv == 'local'
+              ? 'http://localhost:8080/api'
+              : 'https://api-alcozon.onrender.com/api');
+
+  static const String webSocketUrl =
+      _wsUrlOverride != ''
+          ? _wsUrlOverride
+          : (_appEnv == 'local'
+              ? 'ws://localhost:8080/ws'
+              : 'wss://api-alcozon.onrender.com/ws');
 }

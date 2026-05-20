@@ -21,7 +21,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     'IN_DELIVERY',
     'DELIVERED',
   ];
-
   late String _currentStatus;
   late List<String> _availableStatuses;
   bool _isSaving = false;
@@ -29,7 +28,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool get _isFinalStatus =>
       widget.order.status == 'DELIVERED' || widget.order.status == 'CANCELLED';
 
-  bool get _isNavigationMode => widget.order.status == 'IN_DELIVERY';
+  bool get _isNavigationMode =>
+      !widget.order.isCustomOrder && widget.order.status == 'IN_DELIVERY';
 
   bool get _canChangeStatus =>
       !_isFinalStatus && !_isNavigationMode && _availableStatuses.length > 1;
@@ -150,10 +150,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     });
 
     try {
-      final updated = await _orderService.patchStatus(
-        id: widget.order.id,
-        status: _currentStatus,
-      );
+      final updated =
+          widget.order.isCustomOrder
+              ? await _orderService.patchCustomStatus(
+                id: widget.order.id,
+                status: _currentStatus,
+              )
+              : await _orderService.patchStatus(
+                id: widget.order.id,
+                status: _currentStatus,
+              );
       if (!mounted) return;
       Navigator.pop(context, updated);
     } catch (e) {
@@ -184,7 +190,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Szczegóły ${widget.order.displayNumber}',
+          '${widget.order.isCustomOrder ? 'Szczegóły zlecenia' : 'Szczegóły'} ${widget.order.displayNumber}',
           style: const TextStyle(
             color: Color(0xFF1E293B),
             fontWeight: FontWeight.bold,
@@ -220,7 +226,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       Text(
                         widget.order.items.isNotEmpty
                             ? widget.order.items.first.productName
-                            : 'Brak pozycji',
+                            : (widget.order.description?.trim().isNotEmpty ==
+                                    true
+                                ? widget.order.description!.trim()
+                                : 'Brak pozycji'),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -252,6 +261,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   widget.order.clientOrderNumber ?? '-',
                 ),
                 MapEntry('ID klienta', widget.order.customerId.toString()),
+                if (widget.order.isCustomOrder)
+                  MapEntry(
+                    'Typ',
+                    'Zlecenie specjalne',
+                  ),
                 MapEntry('Status', _statusLabel(widget.order.status)),
                 MapEntry('Adres dostawy', widget.order.deliveryAddress ?? '-'),
                 MapEntry('Utworzono', _formatDateTime(widget.order.createdAt)),
@@ -264,6 +278,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 MapEntry('Wartość', _formatMoney(widget.order.totalAmount)),
               ],
             ),
+            if (widget.order.isCustomOrder) ...[
+              const SizedBox(height: 18),
+              _buildInfoCard(
+                title: 'Opis zlecenia specjalnego',
+                rows: [
+                  MapEntry(
+                    'Opis',
+                    widget.order.description?.trim().isNotEmpty == true
+                        ? widget.order.description!.trim()
+                        : '-',
+                  ),
+                  MapEntry(
+                    'Przypisane do',
+                    widget.order.assignedToId?.toString() ?? '-',
+                  ),
+                ],
+              ),
+            ],
             if (widget.order.deliveryDetails != null) ...[
               const SizedBox(height: 18),
               _buildInfoCard(
@@ -298,55 +330,59 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            const Text(
-              'Pozycje zamówienia:',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF64748B),
+            if (!widget.order.isCustomOrder) ...[
+              const Text(
+                'Pozycje zamówienia:',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF64748B),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            ...widget.order.items.map((item) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ProductThumbnail(
-                      productNames: [item.productName],
-                      size: 52,
-                      borderRadius: 10,
-                      accentColor: Colors.green,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.productName,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 6),
-                          Text('Produkt ID: ${item.productId}'),
-                          Text('Ilość: ${item.quantity}'),
-                          Text(
-                            'Cena jednostkowa: ${_formatUnitPrice(item.unitPrice)}',
-                          ),
-                        ],
+              const SizedBox(height: 8),
+              ...widget.order.items.map((item) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ProductThumbnail(
+                        productNames: [item.productName],
+                        size: 52,
+                        borderRadius: 10,
+                        accentColor: Colors.green,
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text('Produkt ID: ${item.productId}'),
+                            Text('Ilość: ${item.quantity}'),
+                            Text(
+                              'Cena jednostkowa: ${_formatUnitPrice(item.unitPrice)}',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
             const SizedBox(height: 24),
             if (_isNavigationMode) ...[
               SizedBox(

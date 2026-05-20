@@ -14,11 +14,19 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen> {
   final InventoryService _inventoryService = InventoryService();
   late Future<InventoryOverview> _inventoryFuture;
+  final TextEditingController _nameFilterController = TextEditingController();
+  String _nameFilter = '';
 
   @override
   void initState() {
     super.initState();
     _inventoryFuture = _inventoryService.getInventory();
+  }
+
+  @override
+  void dispose() {
+    _nameFilterController.dispose();
+    super.dispose();
   }
 
   Future<void> _reloadInventory() async {
@@ -103,7 +111,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
           }
 
           final overview = snapshot.data!;
-          final items = overview.allItems;
+          final query = _nameFilter.trim().toLowerCase();
+          final filteredProducts = overview.products.where((item) {
+            if (query.isEmpty) return true;
+            return item.name.toLowerCase().contains(query);
+          }).toList();
+          final filteredRawMaterials = overview.rawMaterials.where((item) {
+            if (query.isEmpty) return true;
+            return item.name.toLowerCase().contains(query);
+          }).toList();
+          final items = [...filteredProducts, ...filteredRawMaterials];
 
           if (items.isEmpty) {
             return RefreshIndicator(
@@ -138,24 +155,58 @@ class _InventoryScreenState extends State<InventoryScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16.0),
               children: [
-                if (overview.products.isNotEmpty) ...[
+                TextField(
+                  controller: _nameFilterController,
+                  onChanged: (value) {
+                    setState(() {
+                      _nameFilter = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Filtruj po nazwie produktu',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (filteredProducts.isNotEmpty) ...[
                   const _SectionHeader(title: 'Produkty'),
                   const SizedBox(height: 12),
-                  ...overview.products.map(
+                  ...filteredProducts.map(
                     (item) => _InventoryCard(
                       item: item,
                       onInventoryChanged: _reloadInventory,
                     ),
                   ),
                 ],
-                if (overview.rawMaterials.isNotEmpty) ...[
-                  if (overview.products.isNotEmpty) const SizedBox(height: 8),
+                if (filteredRawMaterials.isNotEmpty) ...[
+                  if (filteredProducts.isNotEmpty) const SizedBox(height: 8),
                   const _SectionHeader(title: 'Surowce'),
                   const SizedBox(height: 12),
-                  ...overview.rawMaterials.map(
+                  ...filteredRawMaterials.map(
                     (item) => _InventoryCard(
                       item: item,
                       onInventoryChanged: _reloadInventory,
+                    ),
+                  ),
+                ],
+                if (items.isEmpty) ...[
+                  const SizedBox(height: 36),
+                  const Text(
+                    'Brak wyników dla podanego filtra.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
