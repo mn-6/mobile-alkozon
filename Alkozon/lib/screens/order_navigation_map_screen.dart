@@ -341,7 +341,7 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
                           TileLayer(
                             urlTemplate:
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.alkozon',
+                            userAgentPackageName: 'com.alkozon.app',
                           ),
                           if (_routePoints.isNotEmpty)
                             PolylineLayer(

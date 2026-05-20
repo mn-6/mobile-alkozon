@@ -1,0 +1,7 @@
+## Copy this file to android/key.properties and fill real values.
+## Do not commit key.properties nor keystore files.
+
+storeFile=C:\\secure\\alkozon-release.jks
+storePassword=CHANGE_ME
+keyAlias=alkozon_release
+keyPassword=CHANGE_ME

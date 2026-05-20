@@ -1,4 +1,4 @@
-package com.example.alkozon
+package com.alkozon.app
 
 import io.flutter.embedding.android.FlutterActivity
 
