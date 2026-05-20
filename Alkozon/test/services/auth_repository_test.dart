@@ -33,5 +33,24 @@ void main() {
       expect(repository.decodeTokenClaims('not-a-jwt'), isNull);
       expect(repository.decodeTokenClaims('a.b'), isNull);
     });
+
+    test('decodes payload with base64url padding', () {
+      final payload = base64Url.encode(
+        utf8.encode('{"sub":"42","role":"STAFF"}'),
+      );
+      final token = 'hdr.$payload.sig';
+
+      final claims = repository.decodeTokenClaims(token);
+      expect(claims?['sub'], '42');
+      expect(claims?['role'], 'STAFF');
+    });
+
+    test('normalizes base64url characters in payload', () {
+      final raw = utf8.encode('{"email":"a@b.co"}');
+      var payload = base64Url.encode(raw).replaceAll('=', '');
+      final token = 'hdr.$payload.sig';
+
+      expect(repository.decodeTokenClaims(token)?['email'], 'a@b.co');
+    });
   });
 }

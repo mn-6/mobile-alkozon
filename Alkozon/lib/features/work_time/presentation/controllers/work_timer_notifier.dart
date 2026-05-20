@@ -10,6 +10,13 @@ import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/features/work_time/domain/entities/work_log_entry.dart';
 import 'package:alkozon/features/work_time/domain/repositories/work_log_repository.dart';
 
+String formatDurationSeconds(int totalSeconds) {
+  final h = totalSeconds ~/ 3600;
+  final m = (totalSeconds % 3600) ~/ 60;
+  final s = totalSeconds % 60;
+  return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+}
+
 class QrActionResult {
   const QrActionResult({required this.success, required this.message});
 
@@ -742,10 +749,5 @@ class WorkTimerService extends ChangeNotifier {
   String formatDateTime(DateTime dt) =>
       "${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 
-  String formatTime(int totalSeconds) {
-    final h = totalSeconds ~/ 3600;
-    final m = (totalSeconds % 3600) ~/ 60;
-    final s = totalSeconds % 60;
-    return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
-  }
+  String formatTime(int totalSeconds) => formatDurationSeconds(totalSeconds);
 }

@@ -20,5 +20,16 @@ void main() {
       expect(InputValidators.verificationCodeError('abc'), isNotNull);
       expect(InputValidators.verificationCodeError('123456'), isNull);
     });
+
+    test('verificationCodeError accepts 4 to 8 digits', () {
+      expect(InputValidators.verificationCodeError('1234'), isNull);
+      expect(InputValidators.verificationCodeError('12345678'), isNull);
+      expect(InputValidators.verificationCodeError('123'), isNotNull);
+      expect(InputValidators.verificationCodeError('123456789'), isNotNull);
+    });
+
+    test('emailError trims whitespace before validation', () {
+      expect(InputValidators.emailError('  user@example.com  '), isNull);
+    });
   });
 }

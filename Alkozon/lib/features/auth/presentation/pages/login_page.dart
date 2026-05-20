@@ -11,7 +11,18 @@ import '../../../orders_realtime/data/services/order_realtime_service.dart';
 import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({
+    super.key,
+    this.loginUseCase,
+    this.loginAttemptLimiter,
+    this.onLoginSuccess,
+  });
+
+  final LoginUseCase? loginUseCase;
+  final LoginAttemptLimiter? loginAttemptLimiter;
+
+  /// When set, skips navigation, push setup and realtime connect (for tests).
+  final Future<void> Function(BuildContext context)? onLoginSuccess;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -19,7 +30,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _di = InjectionContainer.I;
-  final LoginAttemptLimiter _loginAttemptLimiter = LoginAttemptLimiter();
+  late final LoginAttemptLimiter _loginAttemptLimiter;
   final NotificationService _notificationService = NotificationService.instance;
   static const String _cachedLoginEmailKey = 'cached_login_email';
   late TextEditingController _emailController;
@@ -32,11 +43,14 @@ class _LoginPageState extends State<LoginPage> {
   bool _requiresTwoFactor = false;
   String? _challengeId;
 
-  LoginUseCase get _loginUseCase => _di.loginUseCase;
+  late final LoginUseCase _loginUseCase;
 
   @override
   void initState() {
     super.initState();
+    _loginUseCase = widget.loginUseCase ?? _di.loginUseCase;
+    _loginAttemptLimiter =
+        widget.loginAttemptLimiter ?? LoginAttemptLimiter();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
     _codeController = TextEditingController();
@@ -105,21 +119,25 @@ class _LoginPageState extends State<LoginPage> {
     switch (result) {
       case LoginSuccess():
         await _loginAttemptLimiter.recordSuccess();
-        await _notificationService.onAuthenticated();
-        await OrderRealtimeService.instance.connectForCurrentUser(
-          authRepository: _di.authRepository,
-        );
-        if (!mounted) {
-          return;
+        if (widget.onLoginSuccess != null) {
+          await widget.onLoginSuccess!(context);
+        } else {
+          await _notificationService.onAuthenticated();
+          await OrderRealtimeService.instance.connectForCurrentUser(
+            authRepository: _di.authRepository,
+          );
+          if (!mounted) {
+            return;
+          }
+          await Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/dashboard',
+            (route) => false,
+          );
+          Future<void>.delayed(Duration.zero, () {
+            _notificationService.processPendingNavigation();
+          });
         }
-        await Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/dashboard',
-          (route) => false,
-        );
-        Future<void>.delayed(Duration.zero, () {
-          _notificationService.processPendingNavigation();
-        });
       case LoginRequiresTwoFactor():
         setState(() {
           _requiresTwoFactor = true;

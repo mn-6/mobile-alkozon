@@ -1,22 +1,7 @@
 import 'package:alkozon/core/security/login_attempt_limiter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class MemoryAttemptStorage implements AttemptStorage {
-  final Map<String, String> _data = {};
-
-  @override
-  Future<void> delete(String key) async {
-    _data.remove(key);
-  }
-
-  @override
-  Future<String?> read(String key) async => _data[key];
-
-  @override
-  Future<void> write(String key, String value) async {
-    _data[key] = value;
-  }
-}
+import '../helpers/memory_attempt_storage.dart';
 
 void main() {
   group('LoginAttemptLimiter', () {
@@ -31,6 +16,16 @@ void main() {
       final status = await limiter.checkAllowed();
       expect(status.allowed, isFalse);
       expect(status.lockoutMessage, isNotNull);
+    });
+
+    test('lockoutMessage uses seconds when under one minute', () {
+      const status = LoginAttemptStatus(
+        allowed: false,
+        remainingLockout: Duration(seconds: 45),
+      );
+
+      expect(status.lockoutMessage, contains('45'));
+      expect(status.lockoutMessage, contains('s'));
     });
 
     test('lockoutMessage describes remaining time in minutes', () async {

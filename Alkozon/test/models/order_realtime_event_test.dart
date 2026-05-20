@@ -49,6 +49,16 @@ void main() {
       expect(OrderRealtimeEvent.tryParse(''), isNull);
       expect(OrderRealtimeEvent.tryParse(null), isNull);
     });
+
+    test('unknown event type still parses with defaults', () {
+      const body =
+          '{"type":"MYSTERY_EVENT","orderId":5,"clientOrderNumber":"X-5","status":"pending"}';
+
+      final event = OrderRealtimeEvent.tryParse(body);
+      expect(event!.type, OrderRealtimeEventType.unknown);
+      expect(event.status, 'PENDING');
+      expect(event.affectsStaffOrderList, isFalse);
+    });
   });
 
   group('OrderRealtimeEvent flags', () {
