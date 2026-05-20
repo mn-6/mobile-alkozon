@@ -33,6 +33,18 @@ void main() {
       expect(status.lockoutMessage, isNotNull);
     });
 
+    test('lockoutMessage describes remaining time in minutes', () async {
+      final storage = MemoryAttemptStorage();
+      final limiter = LoginAttemptLimiter(storage: storage);
+
+      for (var i = 0; i < LoginAttemptLimiter.maxAttempts; i++) {
+        await limiter.recordFailure();
+      }
+
+      final status = await limiter.checkAllowed();
+      expect(status.lockoutMessage, contains('min'));
+    });
+
     test('recordSuccess clears failures', () async {
       final storage = MemoryAttemptStorage();
       final limiter = LoginAttemptLimiter(storage: storage);
