@@ -24,21 +24,24 @@ class DeviceSecurityRepositoryImpl implements DeviceSecurityRepository {
     final isDevelopmentModeEnable = await SafeDevice.isDevelopmentModeEnable;
 
     if (isJailBroken || !isRealDevice || isMockLocation) {
-      terminateApp('Security violation (Root/Emulator/GPS)');
+      debugPrint(
+        'Security: jailBroken=$isJailBroken realDevice=$isRealDevice mockLocation=$isMockLocation',
+      );
+      terminateApp(
+        'Wykryto naruszenie bezpieczeństwa (root, emulator lub fałszywa lokalizacja).',
+      );
     }
 
-    /*
-    if (isDevelopmentModeEnable) {
-      killApp('Developer mode is active.');
+    if (isDevelopmentModeEnable && kReleaseMode) {
+      terminateApp('Aktywne opcje deweloperskie nie są dozwolone.');
     }
-    */
 
     await _verifyApkSigningOrExit();
     await _setupScreenProtection();
 
     assert(() {
       if (isDevelopmentModeEnable) {
-        debugPrint('Developer mode is active (not blocked in debug builds).');
+        debugPrint('Opcje deweloperskie włączone (nie blokują w buildzie debug).');
       }
       return true;
     }());
@@ -54,7 +57,8 @@ class DeviceSecurityRepositoryImpl implements DeviceSecurityRepository {
       signingCertSha256,
       SigningConfig.allowedSigningCertSha256,
     )) {
-      terminateApp('Invalid APK signing certificate (SHA-256).');
+      debugPrint('Security: cert SHA-256=$signingCertSha256');
+      terminateApp('Nieprawidłowy certyfikat podpisu APK (SHA-256).');
     }
   }
 

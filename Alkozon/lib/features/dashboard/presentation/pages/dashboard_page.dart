@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/core/di/injection_container.dart';
-import 'package:alkozon/features/auth/domain/repositories/auth_repository.dart';
 import 'package:alkozon/features/notifications/presentation/services/notification_service.dart';
 import 'package:alkozon/features/orders_realtime/data/services/order_realtime_service.dart';
 import 'package:alkozon/features/notifications/presentation/pages/notifications_page.dart';
@@ -232,7 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
           ).copyWith(
-            overlayColor: WidgetStateProperty.all(color.withOpacity(0.05)),
+            overlayColor: WidgetStateProperty.all(color.withValues(alpha: 0.05)),
           ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -240,7 +239,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 30),

@@ -26,7 +26,7 @@ class ProductThumbnail extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: accentColor.withOpacity(0.12),
+        color: accentColor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(borderRadius),
       ),
       child: ClipRRect(
@@ -37,7 +37,7 @@ class ProductThumbnail extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: size,
                 height: size,
-                errorBuilder: (_, __, ___) => _fallback(),
+                errorBuilder: (context, error, stackTrace) => _fallback(),
               )
             : _fallback(),
       ),

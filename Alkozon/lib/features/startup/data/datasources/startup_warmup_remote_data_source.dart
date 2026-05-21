@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/api_config.dart';
 import '../../../device_security/data/datasources/app_check_remote_data_source.dart';
@@ -8,12 +9,8 @@ class StartupWarmupRemoteDataSource {
     : _dio = Dio(
         BaseOptions(
           baseUrl: ApiConfig.baseUrl,
-          connectTimeout: ApiConfig.isLocal
-              ? const Duration(seconds: 8)
-              : const Duration(seconds: 30),
-          receiveTimeout: ApiConfig.isLocal
-              ? const Duration(seconds: 8)
-              : const Duration(seconds: 30),
+          connectTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 12),
         ),
       ),
       _appCheckDataSource = AppCheckRemoteDataSource();
@@ -32,19 +29,14 @@ class StartupWarmupRemoteDataSource {
             : const Duration(seconds: 3));
     final effectiveTimeout = timeout ??
         (ApiConfig.isLocal
-            ? const Duration(seconds: 60)
-            : const Duration(seconds: 120));
+            ? const Duration(seconds: 30)
+            : const Duration(seconds: 45));
     final deadline = DateTime.now().add(effectiveTimeout);
 
     while (DateTime.now().isBefore(deadline)) {
       try {
-        final response = await _dio.get(
-          '/products',
-          queryParameters: const {'page': 0, 'size': 1},
-          options: Options(validateStatus: (_) => true),
-        );
-
-        if (response.statusCode != null && response.statusCode! < 500) {
+        final ready = await _probeBackend();
+        if (ready) {
           await _submitAppCheckOnce();
           return;
         }
@@ -68,11 +60,25 @@ class StartupWarmupRemoteDataSource {
     );
   }
 
+  Future<bool> _probeBackend() async {
+    final products = await _dio.get(
+      '/products',
+      queryParameters: const {'page': 0, 'size': 1},
+      options: Options(validateStatus: (_) => true),
+    );
+    return products.statusCode != null && products.statusCode! < 500;
+  }
+
   Future<void> _submitAppCheckOnce() async {
     if (_appCheckSubmitted) {
       return;
     }
     _appCheckSubmitted = true;
+    try {
       await _appCheckDataSource.submitAppCheck();
+    } catch (error, stackTrace) {
+      debugPrint('App-check pominięty (start aplikacji): $error');
+      debugPrint('$stackTrace');
+    }
   }
 }

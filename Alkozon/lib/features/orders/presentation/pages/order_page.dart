@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/features/orders_realtime/data/services/order_realtime_service.dart';
 import 'package:alkozon/core/di/injection_container.dart';
+import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/orders/domain/entities/order.dart';
-import 'package:alkozon/features/orders/domain/repositories/order_repository.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
 import 'package:alkozon/features/orders/presentation/pages/order_detail_page.dart';
 
@@ -336,11 +337,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: themeColor.withOpacity(0.15),
+        backgroundColor: themeColor.withValues(alpha: 0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
-          child: Container(color: themeColor.withOpacity(0.5), height: 2.0),
+          child: Container(color: themeColor.withValues(alpha: 0.5), height: 2.0),
         ),
       ),
       body: FutureBuilder<_OrdersViewData>(
@@ -355,25 +356,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
               onRefresh: _reload,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
                 children: [
-                  const SizedBox(height: 120),
-                  const Icon(
-                    Icons.cloud_off,
-                    size: 54,
-                    color: Color(0xFF94A3B8),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Nie udało się pobrać zamówień.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF64748B)),
+                  AppStatusPanel(
+                    icon: Icons.cloud_off,
+                    title: 'Nie udało się pobrać zamówień',
+                    message: UserMessage.fromError(snapshot.error),
+                    actionLabel: 'Spróbuj ponownie',
+                    onAction: _reload,
                   ),
                 ],
               ),

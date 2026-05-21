@@ -37,6 +37,21 @@ class AuthRemoteDataSource {
     return response.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> refresh({required String refreshToken}) async {
+    final response = await _dio.post(
+      '/auth/refresh',
+      data: {'refreshToken': refreshToken},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<void> logout({required String refreshToken}) async {
+    await _dio.post(
+      '/auth/logout',
+      data: {'refreshToken': refreshToken},
+    );
+  }
+
   Future<Map<String, dynamic>> fetchCurrentUser(String token) async {
     final response = await _dio.get(
       '/users/me',
@@ -60,7 +75,8 @@ class AuthResponseMapper {
         challengeId: data['challengeId']?.toString() ?? '',
         expiresInSeconds: (data['expiresInSeconds'] as num?)?.toInt(),
         message:
-            data['message'] as String? ?? 'Podaj kod weryfikacyjny z e-maila',
+            data['message'] as String? ??
+            'Kod weryfikacyjny został wysłany na Twój e-mail.',
       );
     }
 

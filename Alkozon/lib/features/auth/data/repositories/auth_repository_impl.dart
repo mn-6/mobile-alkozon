@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import '../../../../core/localization/user_message.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/entities/user_profile.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -70,9 +71,11 @@ class AuthRepositoryImpl implements AuthRepository {
     } on DioException catch (e) {
       final responseData = e.response?.data;
       final message = responseData is Map ? responseData['message'] : null;
-      return LoginFailure(message?.toString() ?? 'Błąd połączenia z serwerem');
+      return LoginFailure(
+        UserMessage.polish(message?.toString() ?? 'Błąd połączenia z serwerem'),
+      );
     } catch (e) {
-      return LoginFailure('Nieoczekiwany błąd: $e');
+      return LoginFailure(UserMessage.fromError(e));
     }
   }
 
@@ -82,26 +85,76 @@ class AuthRepositoryImpl implements AuthRepository {
       return mapped;
     }
 
-    final refreshToken = rawData['refreshToken'] as String?;
-    if (refreshToken == null || refreshToken.isEmpty) {
+    try {
+      await _persistTokenResponse(rawData, accessToken: mapped.accessToken);
+    } catch (_) {
       return const LoginFailure('Brak tokenów w odpowiedzi serwera');
+    }
+    return mapped;
+  }
+
+  Future<void> _persistTokenResponse(
+    Map<String, dynamic> rawData, {
+    String? accessToken,
+  }) async {
+    final resolvedAccess = accessToken ?? rawData['accessToken'] as String?;
+    final refreshToken = rawData['refreshToken'] as String?;
+    if (resolvedAccess == null ||
+        resolvedAccess.isEmpty ||
+        refreshToken == null ||
+        refreshToken.isEmpty) {
+      throw StateError('Missing tokens in auth response');
     }
 
     await _local.writeTokens(
-      accessToken: mapped.accessToken,
+      accessToken: resolvedAccess,
       refreshToken: refreshToken,
       firstName: rawData['firstName'] as String?,
       lastName: rawData['lastName'] as String?,
     );
-    _dio.options.headers['Authorization'] = 'Bearer ${mapped.accessToken}';
-    return mapped;
+    _dio.options.headers['Authorization'] = 'Bearer $resolvedAccess';
+  }
+
+  @override
+  Future<bool> refreshSession() async {
+    final refreshToken = await _local.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return false;
+    }
+
+    try {
+      final data = await _remote.refresh(refreshToken: refreshToken);
+      await _persistTokenResponse(data);
+      return true;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _clearLocalSession();
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _clearLocalSession() async {
+    await _local.clearSession();
+    _dio.options.headers.remove('Authorization');
   }
 
   @override
   Future<void> logout() async {
     await _onLogout?.call();
-    await _local.clearSession();
-    _dio.options.headers.remove('Authorization');
+
+    final refreshToken = await _local.readRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await _remote.logout(refreshToken: refreshToken);
+      } catch (_) {
+        // Lokalna sesja i tak jest czyszczona — sieć mogła paść.
+      }
+    }
+
+    await _clearLocalSession();
   }
 
   @override

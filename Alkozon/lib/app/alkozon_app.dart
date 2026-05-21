@@ -17,7 +17,6 @@ class _AlkozonAppState extends State<AlkozonApp> {
   final WaitForServerReadyUseCase _waitForServerReady =
       InjectionContainer.I.waitForServerReadyUseCase;
   bool _isWarmingUp = true;
-  String? _warmupError;
 
   @override
   void initState() {
@@ -26,17 +25,21 @@ class _AlkozonAppState extends State<AlkozonApp> {
   }
 
   Future<void> _warmUpServer() async {
+    const overlayCap = Duration(seconds: 20);
+
     try {
-      await _waitForServerReady();
+      await _waitForServerReady().timeout(
+        overlayCap,
+        onTimeout: () {
+          debugPrint(
+            'Warmup: limit czasu UI ($overlayCap) — przechodzę do logowania.',
+          );
+        },
+      );
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _warmupError = error.toString();
-      });
-      return;
+      debugPrint('Warmup: $error');
     }
+
     if (!mounted) {
       return;
     }
@@ -63,40 +66,22 @@ class _AlkozonAppState extends State<AlkozonApp> {
         return Stack(
           children: [
             ?child,
-            if (_isWarmingUp) ...[
+            if (_isWarmingUp)
               const ModalBarrier(dismissible: false, color: Color(0x88FFFFFF)),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_warmupError == null)
-                        const CircularProgressIndicator()
-                      else ...[
-                        const Icon(Icons.wifi_off, size: 48, color: Colors.red),
-                        const SizedBox(height: 16),
-                        Text(
-                          _warmupError!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Color(0xFF1E293B)),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: () {
-                            setState(() {
-                              _warmupError = null;
-                            });
-                            _warmUpServer();
-                          },
-                          child: const Text('Spróbuj ponownie'),
-                        ),
-                      ],
-                    ],
-                  ),
+            if (_isWarmingUp)
+              const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      'Łączenie z serwerem…',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ],
                 ),
               ),
-            ],
           ],
         );
       },

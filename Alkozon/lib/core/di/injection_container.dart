@@ -29,6 +29,7 @@ import '../../features/startup/domain/usecases/wait_for_server_ready_use_case.da
 import '../../features/work_time/data/datasources/work_log_remote_data_source.dart';
 import '../../features/work_time/data/repositories/work_log_repository_impl.dart';
 import '../../features/work_time/domain/repositories/work_log_repository.dart';
+import '../network/auth_token_refresh_interceptor.dart';
 import '../network/dio_factory.dart';
 import '../security/login_attempt_limiter.dart';
 
@@ -62,19 +63,26 @@ class InjectionContainer {
   OrderRealtimeService get orderRealtimeService => OrderRealtimeService.instance;
 
   Future<void> init() async {
-    dio = DioFactory.create();
     loginAttemptLimiter = LoginAttemptLimiter();
     appCheckRemoteDataSource = AppCheckRemoteDataSource();
 
     final authLocalDataSource = AuthLocalDataSource();
-    final authRemoteDataSource = AuthRemoteDataSource(dio);
+    final authDio = DioFactory.create();
+    final authRemoteDataSource = AuthRemoteDataSource(authDio);
 
+    dio = DioFactory.create();
     authRepository = AuthRepositoryImpl(
       dio: dio,
       localDataSource: authLocalDataSource,
       remoteDataSource: authRemoteDataSource,
       onLogout: orderRealtimeService.disconnect,
     );
+    dio.interceptors.add(AuthTokenRefreshInterceptor(authRepository));
+
+    final accessToken = await authLocalDataSource.readToken();
+    if (accessToken != null && accessToken.isNotEmpty) {
+      dio.options.headers['Authorization'] = 'Bearer $accessToken';
+    }
 
     orderRepository = OrderRepositoryImpl(
       OrderRemoteDataSource(authRepository, dio: dio),

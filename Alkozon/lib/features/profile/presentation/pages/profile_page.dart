@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/features/auth/domain/entities/user_profile.dart';
-import 'package:alkozon/features/auth/domain/repositories/auth_repository.dart';
 import 'package:alkozon/features/work_time/presentation/controllers/work_timer_notifier.dart';
 import 'package:alkozon/core/widgets/horizontal_scroll_text.dart';
 
@@ -75,11 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            backgroundColor: themeColor.withOpacity(0.15),
+            backgroundColor: themeColor.withValues(alpha: 0.15),
             elevation: 0,
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(2.0),
-              child: Container(color: themeColor.withOpacity(0.5), height: 2.0),
+              child: Container(color: themeColor.withValues(alpha: 0.5), height: 2.0),
             ),
           ),
           body: snapshot.connectionState == ConnectionState.waiting
@@ -106,7 +105,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     CircleAvatar(
                       radius: 50,
-                      backgroundColor: themeColor.withOpacity(0.2),
+                      backgroundColor: themeColor.withValues(alpha: 0.2),
                       backgroundImage:
                           _photoPath != null && File(_photoPath!).existsSync()
                           ? FileImage(File(_photoPath!))
@@ -228,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: color, size: 20),

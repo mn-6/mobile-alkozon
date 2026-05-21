@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
+import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/widgets/app_snackbar.dart';
 import 'package:alkozon/features/inventory/domain/entities/inventory_item.dart';
-import 'package:alkozon/features/inventory/domain/repositories/inventory_repository.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
 
 class InventoryDetailScreen extends StatefulWidget {
@@ -70,23 +71,20 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
 
     final amount = int.tryParse(_quantityController.text.trim());
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Podaj poprawną ilość większą od zera.'),
-          backgroundColor: Colors.redAccent,
-        ),
+      AppSnackbar.show(
+        context,
+        message: 'Podaj poprawną ilość większą od zera.',
+        success: false,
       );
       return;
     }
 
     if (!add && amount > _currentItem.quantity.toInt()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      AppSnackbar.show(
+        context,
+        message:
             'Nie możesz zużyć więcej niż obecny stan (${_currentItem.quantityLabel}).',
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
+        success: false,
       );
       return;
     }
@@ -115,21 +113,17 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
       await widget.onInventoryChanged();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            add ? 'Dodano $amount do stanu.' : 'Zużyto $amount ze stanu.',
-          ),
-          backgroundColor: Colors.green,
-        ),
+      AppSnackbar.show(
+        context,
+        message: add ? 'Dodano $amount do stanu.' : 'Zużyto $amount ze stanu.',
+        success: true,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się zmienić stanu: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
+      AppSnackbar.show(
+        context,
+        message: 'Nie udało się zmienić stanu: ${UserMessage.fromError(e)}',
+        success: false,
       );
     } finally {
       if (mounted) {
@@ -162,7 +156,7 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.orangeAccent.withOpacity(0.15),
+        backgroundColor: Colors.orangeAccent.withValues(alpha: 0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
@@ -211,7 +205,7 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
               Expanded(
                 child: ListView.separated(
                   itemCount: _currentItem.detailEntries.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final row = _currentItem.detailEntries[index];
                     return Container(

@@ -1,7 +1,49 @@
 import 'package:flutter/material.dart';
 
-class ForgotPassword extends StatelessWidget {
+import '../../../../core/security/input_validators.dart';
+import '../../../../core/widgets/app_logo.dart';
+import '../../../../core/widgets/app_message_banner.dart';
+import '../../../../core/widgets/app_snackbar.dart';
+
+class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
+
+  @override
+  State<ForgotPassword> createState() => _ForgotPasswordState();
+}
+
+class _ForgotPasswordState extends State<ForgotPassword> {
+  final _emailController = TextEditingController();
+  String? _errorMessage;
+  String? _infoMessage;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final emailErr = InputValidators.emailError(_emailController.text.trim());
+    setState(() {
+      _errorMessage = emailErr;
+      _infoMessage = null;
+    });
+    if (emailErr != null) {
+      return;
+    }
+
+    setState(() {
+      _errorMessage = null;
+      _infoMessage =
+          'Jeśli konto istnieje, instrukcje resetu hasła zostały wysłane na podany adres e-mail.';
+    });
+    AppSnackbar.show(
+      context,
+      message: 'Instrukcje resetu hasła zostały wysłane.',
+      success: true,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,65 +61,75 @@ class ForgotPassword extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(left: 32, right: 32, top: 48),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  height: 60,
-                  width: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.lock_reset, color: Colors.orangeAccent, size: 32),
-                ),
-              ),
+              const Center(child: AppLogo(size: 60)),
               const SizedBox(height: 24),
               const Center(
                 child: Text(
-                  "Resetowanie hasła",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  'Resetowanie hasła',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
               const Center(
                 child: Text(
-                  "Podaj swój email, a wyślemy Ci instrukcje",
+                  'Podaj swój e-mail, a wyślemy Ci instrukcje',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                 ),
               ),
-              const SizedBox(height: 40),
-
+              const SizedBox(height: 32),
+              if (_errorMessage != null) ...[
+                AppMessageBanner(message: _errorMessage!),
+                const SizedBox(height: 16),
+              ],
+              if (_infoMessage != null) ...[
+                AppMessageBanner(
+                  message: _infoMessage!,
+                  kind: AppMessageKind.info,
+                ),
+                const SizedBox(height: 16),
+              ],
               const Text(
-                "Email",
-                style: TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF475569)),
+                'E-mail',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF475569),
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
+                controller: _emailController,
                 maxLines: 1,
                 keyboardType: TextInputType.emailAddress,
-                decoration: _inputDecoration("Wpisz swój email", Icons.mail_outline),
+                decoration: _inputDecoration(
+                  'Wpisz swój e-mail',
+                  Icons.mail_outline,
+                ),
               ),
-
               const SizedBox(height: 32),
-
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Instrukcje zostały wysłane!")),
-                    );
-                  },
+                  onPressed: _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E293B),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     elevation: 0,
                   ),
-                  child: const Text("Zresetuj hasło", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Wyślij instrukcje',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -86,6 +138,7 @@ class ForgotPassword extends StatelessWidget {
       ),
     );
   }
+
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       filled: true,

@@ -46,4 +46,7 @@ class FakeAuthRepository implements AuthRepository {
     isAuthenticatedValue = false;
     accessToken = null;
   }
+
+  @override
+  Future<bool> refreshSession() async => false;
 }

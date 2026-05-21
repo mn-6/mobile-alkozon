@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
+import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/inventory/domain/entities/inventory_item.dart';
-import 'package:alkozon/features/inventory/domain/repositories/inventory_repository.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
 import 'package:alkozon/features/inventory/presentation/pages/inventory_detail_page.dart';
 
@@ -57,7 +58,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.orangeAccent.withOpacity(0.15),
+        backgroundColor: Colors.orangeAccent.withValues(alpha: 0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
@@ -76,36 +77,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
               onRefresh: _reloadInventory,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24.0),
                 children: [
-                  const SizedBox(height: 120),
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 48,
-                    color: Color(0xFF94A3B8),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Nie udało się pobrać stanów magazynowych.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF64748B)),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: _reloadInventory,
-                      child: const Text('Spróbuj ponownie'),
-                    ),
+                  AppStatusPanel(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'Nie udało się pobrać stanów magazynowych',
+                    message: UserMessage.fromError(snapshot.error),
+                    actionLabel: 'Spróbuj ponownie',
+                    onAction: _reloadInventory,
                   ),
                 ],
               ),
@@ -203,12 +181,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 ],
                 if (items.isEmpty) ...[
                   const SizedBox(height: 36),
-                  const Text(
-                    'Brak wyników dla podanego filtra.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w600,
+                  const Center(
+                    child: Text(
+                      'Brak wyników dla podanego filtra.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

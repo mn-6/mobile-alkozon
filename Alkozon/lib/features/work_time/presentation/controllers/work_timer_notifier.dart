@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
+import 'package:alkozon/core/localization/user_message.dart';
 import 'package:alkozon/features/work_time/domain/entities/work_log_entry.dart';
 import 'package:alkozon/features/work_time/domain/repositories/work_log_repository.dart';
 
@@ -366,9 +367,10 @@ class WorkTimerService extends ChangeNotifier {
       );
       _history = logs;
     } on DioException catch (e) {
-      _historyError =
-          e.response?.data?['message']?.toString() ??
-          'Nie udało się pobrać logów z serwera.';
+      _historyError = UserMessage.polish(
+        e.response?.data?['message']?.toString() ??
+            'Nie udało się pobrać logów z serwera.',
+      );
     } catch (_) {
       _historyError = 'Nie udało się pobrać logów z serwera.';
     } finally {

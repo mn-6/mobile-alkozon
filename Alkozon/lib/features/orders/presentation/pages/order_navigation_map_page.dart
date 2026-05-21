@@ -8,9 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
-import 'package:alkozon/features/orders/domain/entities/order.dart';
-import 'package:alkozon/features/orders/domain/repositories/order_repository.dart';
-
+import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/widgets/app_snackbar.dart';
+import 'package:alkozon/core/widgets/app_status_panel.dart';
 class OrderNavigationMapScreen extends StatefulWidget {
   const OrderNavigationMapScreen({
     super.key,
@@ -92,7 +92,7 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = UserMessage.fromError(e);
         _loading = false;
       });
     }
@@ -161,11 +161,10 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się oznaczyć dostawy: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
+      AppSnackbar.show(
+        context,
+        message: 'Nie udało się oznaczyć dostawy: ${UserMessage.fromError(e)}',
+        success: false,
       );
     } finally {
       if (mounted) {
@@ -195,7 +194,9 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
     }
 
     final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+      ),
     );
     return LatLng(position.latitude, position.longitude);
   }
@@ -272,23 +273,17 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Colors.blueAccent.withOpacity(0.15),
+        backgroundColor: Colors.blueAccent.withValues(alpha: 0.15),
         elevation: 0,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 16,
-                  ),
-                ),
+              child: AppStatusPanel(
+                icon: Icons.map_outlined,
+                title: 'Nie udało się wczytać nawigacji',
+                message: _error!,
               ),
             )
           : Column(

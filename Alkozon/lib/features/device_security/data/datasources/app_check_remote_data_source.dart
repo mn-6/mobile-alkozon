@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/config/api_config.dart';
-import '../../../../core/security/app_termination.dart';
 import '../../../../core/security/signing_cert_verifier.dart';
 
 class AppCheckRemoteDataSource {
@@ -54,7 +53,7 @@ class AppCheckRemoteDataSource {
     }
 
     if (response.statusCode == 403) {
-      terminateApp(
+      throw StateError(
         'Aplikacja nie przeszła weryfikacji bezpieczeństwa (certyfikat APK).',
       );
     }

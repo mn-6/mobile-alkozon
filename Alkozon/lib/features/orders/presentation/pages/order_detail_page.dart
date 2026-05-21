@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/core/di/injection_container.dart';
-import 'package:alkozon/features/inventory/domain/entities/inventory_item.dart';
-import 'package:alkozon/features/inventory/domain/repositories/inventory_repository.dart';
-import 'package:alkozon/core/di/injection_container.dart';
+import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/widgets/app_snackbar.dart';
 import 'package:alkozon/features/orders/domain/entities/order.dart';
-import 'package:alkozon/features/orders/domain/repositories/order_repository.dart';
 import 'package:alkozon/core/widgets/horizontal_scroll_text.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
 import 'package:alkozon/features/orders/presentation/pages/order_navigation_map_page.dart';
@@ -94,11 +92,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _openNavigation() async {
     final address = _deliveryAddressForNavigation();
     if (address.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Brak adresu do nawigacji.'),
-          backgroundColor: Colors.redAccent,
-        ),
+      AppSnackbar.show(
+        context,
+        message: 'Brak adresu do nawigacji.',
+        success: false,
       );
       return;
     }
@@ -208,11 +205,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       Navigator.pop(context, updated);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nie udało się zmienić statusu: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
+      AppSnackbar.show(
+        context,
+        message: 'Nie udało się zmienić statusu: ${UserMessage.fromError(e)}',
+        success: false,
       );
     } finally {
       if (mounted) {
@@ -258,11 +254,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: themeColor.withOpacity(0.15),
+        backgroundColor: themeColor.withValues(alpha: 0.15),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2.0),
-          child: Container(color: themeColor.withOpacity(0.5), height: 2.0),
+          child: Container(color: themeColor.withValues(alpha: 0.5), height: 2.0),
         ),
       ),
       body: Padding(

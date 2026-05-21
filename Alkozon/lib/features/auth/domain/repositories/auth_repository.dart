@@ -12,6 +12,10 @@ abstract class AuthRepository implements AuthTokenProvider {
 
   Future<void> logout();
 
+  /// Odświeża parę tokenów przy użyciu zapisanego refresh tokena.
+  /// Zwraca `true` gdy sesja została przedłużona.
+  Future<bool> refreshSession();
+
   Future<String> getOrCreateDeviceId();
 
   Future<bool> isAuthenticated();

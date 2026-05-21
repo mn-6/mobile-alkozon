@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/localization/user_message.dart';
 import '../../../../core/security/input_validators.dart';
 import '../../../../core/security/login_attempt_limiter.dart';
+import '../../../../core/widgets/app_logo.dart';
+import '../../../../core/widgets/app_message_banner.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/usecases/login_use_case.dart';
 import '../../../notifications/presentation/services/notification_service.dart';
@@ -119,6 +122,9 @@ class _LoginPageState extends State<LoginPage> {
     switch (result) {
       case LoginSuccess():
         await _loginAttemptLimiter.recordSuccess();
+        if (!mounted) {
+          return;
+        }
         if (widget.onLoginSuccess != null) {
           await widget.onLoginSuccess!(context);
         } else {
@@ -142,12 +148,14 @@ class _LoginPageState extends State<LoginPage> {
         setState(() {
           _requiresTwoFactor = true;
           _challengeId = result.challengeId;
-          _infoMessage = result.message ?? 'Wpisz kod 2FA wysłany na e-mail';
+          _infoMessage = UserMessage.polish(
+            result.message ?? 'Kod weryfikacyjny został wysłany na Twój e-mail. Wpisz go poniżej.',
+          );
         });
       case LoginFailure():
         await _loginAttemptLimiter.recordFailure();
         setState(() {
-          _errorMessage = result.message;
+          _errorMessage = UserMessage.polish(result.message);
         });
     }
 
@@ -188,17 +196,7 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 128),
-              Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    'lib/imgs/logo.jpg',
-                    height: 72,
-                    width: 72,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
+              const Center(child: AppLogo()),
               const SizedBox(height: 24),
               const Center(
                 child: Text(
@@ -217,34 +215,17 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              if (_errorMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                  ),
+              if (_errorMessage != null) ...[
+                AppMessageBanner(message: _errorMessage!),
+                const SizedBox(height: 16),
+              ],
+              if (_infoMessage != null) ...[
+                AppMessageBanner(
+                  message: _infoMessage!,
+                  kind: AppMessageKind.info,
                 ),
-              if (_errorMessage != null) const SizedBox(height: 16),
-              if (_infoMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.withValues(alpha: 0.5)),
-                  ),
-                  child: Text(
-                    _infoMessage!,
-                    style: const TextStyle(color: Colors.blue, fontSize: 14),
-                  ),
-                ),
-              if (_infoMessage != null) const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               _buildLabel('Email'),
               TextField(
                 controller: _emailController,

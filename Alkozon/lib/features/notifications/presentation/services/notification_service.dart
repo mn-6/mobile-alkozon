@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../core/config/api_config.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
 import '../../../orders/presentation/pages/order_page.dart';
@@ -205,7 +204,6 @@ class NotificationService extends ChangeNotifier {
   factory NotificationService() => _instance;
   static NotificationService get instance => _instance;
 
-  static const String _apiUrl = ApiConfig.baseUrl;
   static const String _notificationsStorageKey = 'app_notifications_v1';
   static const String _pendingOpenKey = 'pending_notification_open_v1';
   static const String _tokenRegisterPath = String.fromEnvironment(
@@ -223,13 +221,7 @@ class NotificationService extends ChangeNotifier {
 
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   AuthRepository get _authRepository => InjectionContainer.I.authRepository;
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: _apiUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ),
-  );
+  Dio get _dio => InjectionContainer.I.dio;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -662,8 +654,7 @@ class NotificationService extends ChangeNotifier {
       return;
     }
 
-    final authToken = await _authRepository.getAccessToken();
-    if (authToken == null || authToken.isEmpty) {
+    if (!await _authRepository.isAuthenticated()) {
       return;
     }
 
@@ -676,10 +667,7 @@ class NotificationService extends ChangeNotifier {
       final response = await _dio.post(
         _tokenRegisterPath,
         data: payload,
-        options: Options(
-          headers: {'Authorization': 'Bearer $authToken'},
-          validateStatus: (_) => true,
-        ),
+        options: Options(validateStatus: (_) => true),
       );
       if (response.statusCode != null &&
           response.statusCode! >= 200 &&

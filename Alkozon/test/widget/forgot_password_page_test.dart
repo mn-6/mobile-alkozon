@@ -10,8 +10,8 @@ void main() {
       );
 
       expect(find.text('Resetowanie hasła'), findsOneWidget);
-      expect(find.text('Zresetuj hasło'), findsOneWidget);
-      expect(find.byIcon(Icons.lock_reset), findsOneWidget);
+      expect(find.text('Wyślij instrukcje'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
     });
 
     testWidgets('shows snackbar after submit', (tester) async {
@@ -19,11 +19,12 @@ void main() {
         const MaterialApp(home: ForgotPassword()),
       );
 
-      await tester.tap(find.text('Zresetuj hasło'));
+      await tester.enterText(find.byType(TextField), 'test@alkozon.test');
+      await tester.tap(find.text('Wyślij instrukcje'));
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Instrukcje zostały wysłane!'),
+        find.text('Instrukcje resetu hasła zostały wysłane.'),
         findsOneWidget,
       );
     });

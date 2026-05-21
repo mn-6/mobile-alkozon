@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:alkozon/core/widgets/app_snackbar.dart';
+import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/work_time/presentation/controllers/work_timer_notifier.dart';
 
 class WorkTimeScreen extends StatefulWidget {
@@ -50,14 +52,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
 
   Future<void> _showSnack(String message, {required bool success}) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: success ? Colors.green.shade700 : Colors.redAccent,
-      ),
-    );
+    AppSnackbar.show(context, message: message, success: success);
   }
 
   Future<void> _handleBreakAction(Future<QrActionResult> Function() action) async {
@@ -87,7 +82,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: Colors.blueAccent.withOpacity(0.15),
+              backgroundColor: Colors.blueAccent.withValues(alpha: 0.15),
               elevation: 0,
               bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(2.0),
@@ -330,26 +325,21 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                         });
 
                         final result = await timerService.processQrCode(code);
-                        if (!mounted) return;
+                        if (!modalContext.mounted) return;
 
                         Navigator.pop(modalContext);
 
-                        ScaffoldMessenger.of(screenContext).showSnackBar(
-                          SnackBar(
-                            content: Text(result.message),
-                            duration: const Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                            backgroundColor: result.success
-                                ? Colors.green.shade700
-                                : Colors.redAccent,
-                          ),
+                        if (!screenContext.mounted) return;
+                        AppSnackbar.show(
+                          screenContext,
+                          message: result.message,
+                          success: result.success,
                         );
 
-                        if (mounted) {
-                          setState(() {
-                            _isProcessingScan = false;
-                          });
-                        }
+                        if (!mounted) return;
+                        setState(() {
+                          _isProcessingScan = false;
+                        });
 
                         break;
                       }
@@ -384,9 +374,9 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                 width: 90,
                 height: 90,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: color.withOpacity(0.3), width: 2),
+                  border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
                 ),
                 child: Icon(icon, size: 40, color: color),
               ),
@@ -422,19 +412,12 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
           padding: const EdgeInsets.all(24.0),
           children: [
             const SizedBox(height: 120),
-            const Icon(Icons.cloud_off, size: 56, color: Color(0xFF94A3B8)),
-            const SizedBox(height: 16),
-            Text(
-              timerService.historyError!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: ElevatedButton(
-                onPressed: timerService.refreshHistoryFromBackend,
-                child: const Text('Odśwież logi'),
-              ),
+            AppStatusPanel(
+              icon: Icons.cloud_off,
+              title: 'Nie udało się pobrać historii',
+              message: timerService.historyError!,
+              actionLabel: 'Odśwież logi',
+              onAction: timerService.refreshHistoryFromBackend,
             ),
           ],
         ),
@@ -452,7 +435,7 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
             Icon(Icons.history, size: 64, color: Colors.grey.shade300),
             const SizedBox(height: 16),
             const Text(
-              "Brak zapisanych logów",
+              'Brak zapisanych logów',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey),
             ),
