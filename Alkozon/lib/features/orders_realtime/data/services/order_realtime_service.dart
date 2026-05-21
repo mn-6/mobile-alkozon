@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
+import '../../../../core/app/app_foreground_state.dart';
 import '../../../../core/config/api_config.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
 import '../../../../core/di/injection_container.dart';
@@ -21,6 +22,7 @@ class OrderRealtimeService extends ChangeNotifier {
   StompUnsubscribe? _staffSubscription;
   StompUnsubscribe? _courierSubscription;
   bool _subscribeCourier = false;
+  int? _currentUserId;
   bool _isConnected = false;
 
   final Set<VoidCallback> _orderReloadListeners = {};
@@ -49,6 +51,7 @@ class OrderRealtimeService extends ChangeNotifier {
       return;
     }
 
+    _currentUserId = profile?.id;
     await connect(
       accessToken: token,
       subscribeCourier: profile?.courier ?? false,
@@ -102,6 +105,7 @@ class OrderRealtimeService extends ChangeNotifier {
     _client?.deactivate();
     _client = null;
     _subscribeCourier = false;
+    _currentUserId = null;
 
     if (_isConnected) {
       _isConnected = false;
@@ -143,12 +147,7 @@ class OrderRealtimeService extends ChangeNotifier {
     if (event == null) {
       return;
     }
-    unawaited(
-      NotificationService.instance.ingestRealtimeEvent(
-        event,
-        showForegroundBanner: true,
-      ),
-    );
+    _maybeIngestStompNotification(event, fromStaffChannel: true);
     if (event.affectsStaffOrderList) {
       _notifyOrderReload(event);
     }
@@ -159,15 +158,41 @@ class OrderRealtimeService extends ChangeNotifier {
     if (event == null) {
       return;
     }
+    if (event.type == OrderRealtimeEventType.deliveryAssigned) {
+      final assignedTo = event.courierUserId;
+      final me = _currentUserId;
+      if (assignedTo != null && me != null && assignedTo != me) {
+        if (event.affectsCourierDeliveryList) {
+          _notifyOrderReload(event);
+        }
+        return;
+      }
+    }
+    _maybeIngestStompNotification(event, fromStaffChannel: false);
+    if (event.affectsCourierDeliveryList) {
+      _notifyOrderReload(event);
+    }
+  }
+
+  void _maybeIngestStompNotification(
+    OrderRealtimeEvent event, {
+    required bool fromStaffChannel,
+  }) {
+    final inForeground = AppForegroundState.instance.isForeground;
+    if (!inForeground && ApiConfig.isProduction) {
+      return;
+    }
+    if (fromStaffChannel &&
+        _subscribeCourier &&
+        event.type == OrderRealtimeEventType.deliveryAssigned) {
+      return;
+    }
     unawaited(
       NotificationService.instance.ingestRealtimeEvent(
         event,
         showForegroundBanner: true,
       ),
     );
-    if (event.affectsCourierDeliveryList) {
-      _notifyOrderReload(event);
-    }
   }
 
   void _notifyOrderReload(OrderRealtimeEvent event) {

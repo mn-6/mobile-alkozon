@@ -8,8 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/app/app_foreground_state.dart';
+import '../../../../core/config/api_config.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
+import '../../../orders_realtime/data/services/order_realtime_service.dart';
 import '../../../orders/presentation/pages/order_page.dart';
 import '../../../orders_realtime/domain/entities/order_realtime_event.dart';
 
@@ -194,7 +197,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     return;
   }
 
-  await NotificationService.persistRemoteMessage(message);
+  await NotificationService.handleBackgroundRemoteMessage(message);
 }
 
 class NotificationService extends ChangeNotifier {
@@ -227,7 +230,11 @@ class NotificationService extends ChangeNotifier {
 
   bool _initialized = false;
   bool _firebaseReady = false;
+  bool _lifecycleHooked = false;
   final List<AppNotification> _notifications = [];
+
+  /// STOMP + in-app center when open; FCM when paused/background.
+  bool get isAppInForeground => AppForegroundState.instance.isForeground;
 
   StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
   StreamSubscription<RemoteMessage>? _messageTapSubscription;
@@ -237,6 +244,48 @@ class NotificationService extends ChangeNotifier {
   int get unreadCount => _notifications.where((item) => !item.isRead).length;
   bool get isPushConfigured => true;
   bool get isPushActive => _firebaseReady;
+
+  static Future<void> handleBackgroundRemoteMessage(RemoteMessage message) async {
+    final incoming = AppNotification.fromRemoteMessage(message);
+    if (incoming == null) {
+      return;
+    }
+    await persistRemoteMessage(message);
+    await _showBackgroundLocalNotification(incoming);
+  }
+
+  static Future<void> _showBackgroundLocalNotification(
+    AppNotification notification,
+  ) async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    await plugin.initialize(const InitializationSettings(android: androidSettings));
+
+    final androidImplementation = plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await androidImplementation?.createNotificationChannel(_ordersChannel);
+
+    final notificationId = notification.createdAt.millisecondsSinceEpoch
+        .remainder(1 << 31);
+    await plugin.show(
+      notificationId,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _ordersChannel.id,
+          _ordersChannel.name,
+          channelDescription: _ordersChannel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+      ),
+      payload: jsonEncode({'notificationId': notification.id}),
+    );
+  }
 
   static Future<bool> ensureFirebaseInitialized() async {
     if (Firebase.apps.isNotEmpty) {
@@ -257,6 +306,8 @@ class NotificationService extends ChangeNotifier {
     }
     _initialized = true;
 
+    _attachAppLifecycleRouting();
+
     await _loadPersistedNotifications();
     await _initializeLocalNotifications();
 
@@ -275,6 +326,10 @@ class NotificationService extends ChangeNotifier {
     await _restoreLaunchNotification();
 
     _foregroundMessageSubscription = FirebaseMessaging.onMessage.listen((message) async {
+      // App open: STOMP already feeds the notification center; skip FCM duplicate.
+      if (isAppInForeground) {
+        return;
+      }
       final notification = await ingestRemoteMessage(
         message,
         showForegroundBanner: true,
@@ -418,13 +473,28 @@ class NotificationService extends ChangeNotifier {
     return stored;
   }
 
+  /// W tle na produkcji — tylko FCM. Lokalnie STOMP zostaje i też pokazuje push.
+  bool get _useStompNotifications =>
+      isAppInForeground || ApiConfig.isLocal;
+
   Future<AppNotification?> ingestRealtimeEvent(
     OrderRealtimeEvent event, {
     bool showForegroundBanner = false,
   }) async {
+    if (!_useStompNotifications) {
+      return null;
+    }
     final incoming = _notificationFromRealtimeEvent(event);
     if (incoming == null) {
       return null;
+    }
+
+    if (_hasRecentDuplicate(incoming)) {
+      return null;
+    }
+
+    if (incoming.type == AppNotificationType.deliveryAssignment) {
+      _dropUnreadNewOrderForOrder(incoming.orderId);
     }
 
     final stored = await _storeNotification(incoming);
@@ -464,15 +534,40 @@ class NotificationService extends ChangeNotifier {
         return null;
     }
 
-    final createdAt = DateTime.now();
     return AppNotification(
-      id: 'stomp-${event.type.name}-${event.orderId}-${createdAt.millisecondsSinceEpoch}',
+      id: 'stomp-${event.type.name}-${event.orderId}',
       type: type,
       title: title,
       body: body,
-      createdAt: createdAt,
+      createdAt: DateTime.now(),
       isRead: false,
       orderId: event.orderId,
+    );
+  }
+
+  bool _hasRecentDuplicate(AppNotification incoming) {
+    if (_notifications.any((item) => item.id == incoming.id && !item.isRead)) {
+      return true;
+    }
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 2));
+    return _notifications.any(
+      (item) =>
+          item.orderId == incoming.orderId &&
+          item.type == incoming.type &&
+          !item.isRead &&
+          item.createdAt.isAfter(cutoff),
+    );
+  }
+
+  void _dropUnreadNewOrderForOrder(int? orderId) {
+    if (orderId == null) {
+      return;
+    }
+    _notifications.removeWhere(
+      (item) =>
+          item.orderId == orderId &&
+          item.type == AppNotificationType.newOrder &&
+          !item.isRead,
     );
   }
 
@@ -642,6 +737,30 @@ class NotificationService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final encoded = _notifications.map((item) => item.toJson()).toList();
     await prefs.setString(_notificationsStorageKey, jsonEncode(encoded));
+  }
+
+  void _attachAppLifecycleRouting() {
+    if (_lifecycleHooked) {
+      return;
+    }
+    _lifecycleHooked = true;
+    AppForegroundState.instance.attach();
+    AppForegroundState.instance.addListener(_onAppForegroundChanged);
+    unawaited(_onAppForegroundChanged());
+  }
+
+  Future<void> _onAppForegroundChanged() async {
+    if (isAppInForeground) {
+      if (await _authRepository.isAuthenticated()) {
+        await OrderRealtimeService.instance.connectForCurrentUser(
+          authRepository: _authRepository,
+        );
+      }
+      return;
+    }
+    if (ApiConfig.isProduction) {
+      await OrderRealtimeService.instance.disconnect();
+    }
   }
 
   Future<void> _syncMessagingToken() async {
