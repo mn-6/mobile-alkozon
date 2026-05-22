@@ -75,6 +75,27 @@ class DeliveryDetails {
       paymentMethod: json['paymentMethod'] as String?,
     );
   }
+
+  bool get hasStructuredData {
+    bool has(String? value) => value != null && value.trim().isNotEmpty;
+    return has(streetAddress) ||
+        has(city) ||
+        has(postalCode) ||
+        has(recipientName);
+  }
+
+  String? get formattedSingleLine {
+    if (!hasStructuredData) {
+      return null;
+    }
+    final parts = <String>[
+      if ((streetAddress ?? '').trim().isNotEmpty) streetAddress!.trim(),
+      if ((postalCode ?? '').trim().isNotEmpty) postalCode!.trim(),
+      if ((city ?? '').trim().isNotEmpty) city!.trim(),
+      if ((country ?? '').trim().isNotEmpty) country!.trim(),
+    ];
+    return parts.isEmpty ? null : parts.join(', ');
+  }
 }
 
 class OrderData {
@@ -143,6 +164,11 @@ class OrderData {
     final description = json['description'] as String?;
     final status = (json['status'] as String? ?? 'SUBMITTED').toUpperCase();
     final prefsRaw = json['preferences'];
+    final preferences = prefsRaw is Map
+        ? Map<String, dynamic>.from(prefsRaw)
+        : <String, dynamic>{};
+    final deliveryDetails = _deliveryDetailsFromCustomPreferences(preferences);
+    final deliveryAddress = deliveryDetails?.formattedSingleLine;
 
     return OrderData(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -150,8 +176,8 @@ class OrderData {
       clientOrderNumber: json['clientOrderNumber'] as String?,
       customerId: (json['customerId'] as num?)?.toInt() ?? 0,
       status: status,
-      deliveryAddress: null,
-      deliveryDetails: null,
+      deliveryAddress: deliveryAddress,
+      deliveryDetails: deliveryDetails,
       totalAmount: 0,
       createdAt:
           createdRaw != null
@@ -166,10 +192,30 @@ class OrderData {
       items: const [],
       isCustomOrder: true,
       description: description,
-      preferences:
-          prefsRaw is Map ? Map<String, dynamic>.from(prefsRaw) : const {},
+      preferences: preferences,
       assignedToId: (json['assignedToId'] as num?)?.toInt(),
     );
+  }
+
+  static DeliveryDetails? _deliveryDetailsFromCustomPreferences(
+    Map<String, dynamic> preferences,
+  ) {
+    final nested = preferences['delivery'];
+    if (nested is Map) {
+      final fromNested = DeliveryDetails.fromJson(
+        Map<String, dynamic>.from(nested),
+      );
+      if (fromNested.hasStructuredData) {
+        return fromNested;
+      }
+    }
+
+    final fromFlat = DeliveryDetails.fromJson(preferences);
+    if (fromFlat.hasStructuredData) {
+      return fromFlat;
+    }
+
+    return null;
   }
 
   String get displayNumber => orderNumber ?? clientOrderNumber ?? '#$id';

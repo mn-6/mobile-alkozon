@@ -46,7 +46,6 @@ class StartupWarmupRemoteDataSource {
         }
       } on DioException catch (error) {
         final status = error.response?.statusCode;
-        // Serwer odpowiedział (nawet 401/403) — backend żyje; logowanie może przejść dalej.
         if (status != null && status < 500) {
           await _submitAppCheckOnce();
           return;

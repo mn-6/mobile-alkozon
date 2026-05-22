@@ -73,6 +73,30 @@ void main() {
       expect(order.preferences?['smokiness'], 'high');
     });
 
+    test('parses delivery from preferences.delivery', () {
+      final order = OrderData.fromCustomJson({
+        'id': 8,
+        'customerId': 1,
+        'status': 'IN_DELIVERY',
+        'preferences': {
+          'smokiness': 'high',
+          'delivery': {
+            'recipientName': 'Jan Kowalski',
+            'streetAddress': 'Wrocławska 12',
+            'city': 'Wrocław',
+            'postalCode': '54-540',
+            'country': 'Polska',
+            'deliveryNotes': 'domofon 12',
+          },
+        },
+      });
+
+      expect(order.deliveryDetails?.city, 'Wrocław');
+      expect(order.deliveryDetails?.streetAddress, 'Wrocławska 12');
+      expect(order.deliveryAddress, contains('Wrocławska 12'));
+      expect(order.deliveryAddress, contains('Wrocław'));
+    });
+
     test('displayNumber falls back to id when numbers missing', () {
       final order = OrderData.fromCustomJson({
         'id': 99,

@@ -7,6 +7,7 @@ import 'package:alkozon/features/orders/domain/entities/order.dart';
 import 'package:alkozon/core/widgets/horizontal_scroll_text.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
 import 'package:alkozon/features/orders/presentation/pages/order_navigation_map_page.dart';
+import 'package:alkozon/features/orders/presentation/utils/custom_order_preferences_formatter.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderData order;
@@ -32,8 +33,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool get _isFinalStatus =>
       widget.order.status == 'DELIVERED' || widget.order.status == 'CANCELLED';
 
-  bool get _isNavigationMode =>
-      !widget.order.isCustomOrder && widget.order.status == 'IN_DELIVERY';
+  bool get _isNavigationMode => widget.order.status == 'IN_DELIVERY';
 
   String? get _nextStatus {
     if (_isFinalStatus || _isNavigationMode) return null;
@@ -107,6 +107,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         builder: (context) => OrderNavigationMapScreen(
           address: address,
           orderId: widget.order.id,
+          isCustomOrder: widget.order.isCustomOrder,
         ),
       ),
     );
@@ -357,8 +358,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 18),
+              _buildPreferencesCard(
+                CustomOrderPreferencesFormatter.displayRows(
+                  widget.order.preferences,
+                ),
+              ),
             ],
-            if (widget.order.deliveryDetails != null) ...[
+            if (widget.order.deliveryDetails != null &&
+                !widget.order.isCustomOrder) ...[
               const SizedBox(height: 18),
               _buildInfoCard(
                 title: 'Szczegóły dostawy',
@@ -554,6 +562,64 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPreferencesCard(List<MapEntry<String, String>> rows) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Preferencje zamówienia',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (rows.isEmpty)
+            const Text(
+              'Brak zapisanych preferencji.',
+              style: TextStyle(color: Color(0xFF64748B)),
+            )
+          else
+            ...rows.map(
+              (row) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.key,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      row.value,
+                      style: const TextStyle(
+                        color: Color(0xFF1E293B),
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

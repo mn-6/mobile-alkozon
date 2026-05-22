@@ -17,10 +17,12 @@ class OrderNavigationMapScreen extends StatefulWidget {
     super.key,
     required this.address,
     required this.orderId,
+    this.isCustomOrder = false,
   });
 
   final String address;
   final int orderId;
+  final bool isCustomOrder;
 
   @override
   State<OrderNavigationMapScreen> createState() =>
@@ -160,7 +162,17 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
     });
 
     try {
-      await _orderRepository.patchStatus(id: widget.orderId, status: 'DELIVERED');
+      if (widget.isCustomOrder) {
+        await _orderRepository.patchCustomStatus(
+          id: widget.orderId,
+          status: 'DELIVERED',
+        );
+      } else {
+        await _orderRepository.patchStatus(
+          id: widget.orderId,
+          status: 'DELIVERED',
+        );
+      }
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,

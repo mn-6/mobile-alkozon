@@ -8,6 +8,7 @@ import '../../features/auth/domain/usecases/get_current_user_display_name_use_ca
 import '../../features/auth/domain/usecases/get_current_user_profile_use_case.dart';
 import '../../features/auth/domain/usecases/is_authenticated_use_case.dart';
 import '../../features/auth/domain/usecases/login_use_case.dart';
+import '../../features/auth/domain/usecases/request_password_reset_use_case.dart';
 import '../../features/auth/domain/usecases/logout_use_case.dart';
 import '../../features/catalog/domain/product_image_resolver.dart';
 import '../../features/device_security/data/datasources/app_check_remote_data_source.dart';
@@ -52,6 +53,7 @@ class InjectionContainer {
   late final LoginAttemptLimiter loginAttemptLimiter;
 
   late final LoginUseCase loginUseCase;
+  late final RequestPasswordResetUseCase requestPasswordResetUseCase;
   late final LogoutUseCase logoutUseCase;
   late final GetCurrentUserProfileUseCase getCurrentUserProfileUseCase;
   late final GetCurrentUserDisplayNameUseCase getCurrentUserDisplayNameUseCase;
@@ -104,6 +106,7 @@ class InjectionContainer {
     );
 
     loginUseCase = LoginUseCase(authRepository);
+    requestPasswordResetUseCase = RequestPasswordResetUseCase(authRepository);
     logoutUseCase = LogoutUseCase(authRepository);
     getCurrentUserProfileUseCase = GetCurrentUserProfileUseCase(authRepository);
     getCurrentUserDisplayNameUseCase = GetCurrentUserDisplayNameUseCase(

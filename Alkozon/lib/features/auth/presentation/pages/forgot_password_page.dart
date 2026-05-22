@@ -1,21 +1,43 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/connectivity/connectivity_failure_handler.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/security/input_validators.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_message_banner.dart';
-import '../../../../core/widgets/app_snackbar.dart';
+import '../../domain/entities/forgot_password_result.dart';
+import '../../domain/usecases/request_password_reset_use_case.dart';
 
 class ForgotPassword extends StatefulWidget {
-  const ForgotPassword({super.key});
+  const ForgotPassword({
+    super.key,
+    this.requestPasswordResetUseCase,
+  });
+
+  final RequestPasswordResetUseCase? requestPasswordResetUseCase;
 
   @override
   State<ForgotPassword> createState() => _ForgotPasswordState();
 }
 
 class _ForgotPasswordState extends State<ForgotPassword> {
+  static const String _successMessage =
+      'Jeżeli adres e-mail jest prawidłowy, hasło zostało zresetowane. Sprawdź skrzynkę.';
+
   final _emailController = TextEditingController();
+  late final RequestPasswordResetUseCase _requestPasswordResetUseCase;
+
   String? _errorMessage;
   String? _infoMessage;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPasswordResetUseCase =
+        widget.requestPasswordResetUseCase ??
+        InjectionContainer.I.requestPasswordResetUseCase;
+  }
 
   @override
   void dispose() {
@@ -23,26 +45,49 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     super.dispose();
   }
 
-  void _submit() {
-    final emailErr = InputValidators.emailError(_emailController.text.trim());
+  Future<void> _submit() async {
+    final email = _emailController.text.trim();
+    final emailErr = InputValidators.emailError(email);
+
     setState(() {
       _errorMessage = emailErr;
       _infoMessage = null;
     });
+
     if (emailErr != null) {
       return;
     }
 
     setState(() {
+      _isLoading = true;
       _errorMessage = null;
-      _infoMessage =
-          'Jeśli konto istnieje, instrukcje resetu hasła zostały wysłane na podany adres e-mail.';
+      _infoMessage = null;
     });
-    AppSnackbar.show(
-      context,
-      message: 'Instrukcje resetu hasła zostały wysłane.',
-      success: true,
-    );
+
+    final result = await _requestPasswordResetUseCase(email: email);
+
+    if (!mounted) {
+      return;
+    }
+
+    switch (result) {
+      case ForgotPasswordSuccess():
+        setState(() {
+          _isLoading = false;
+          _infoMessage = _successMessage;
+        });
+      case ForgotPasswordFailure(:final message, :final cause):
+        if (ConnectivityFailureHandler.report(cause ?? message)) {
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
+        setState(() {
+          _isLoading = false;
+          _errorMessage = message;
+        });
+    }
   }
 
   @override
@@ -54,7 +99,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
@@ -105,6 +150,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
               const SizedBox(height: 8),
               TextField(
                 controller: _emailController,
+                enabled: !_isLoading,
                 maxLines: 1,
                 keyboardType: TextInputType.emailAddress,
                 decoration: _inputDecoration(
@@ -117,7 +163,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _submit,
+                  onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1E293B),
                     foregroundColor: Colors.white,
@@ -126,10 +172,22 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Wyślij instrukcje',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Wyślij instrukcje',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],

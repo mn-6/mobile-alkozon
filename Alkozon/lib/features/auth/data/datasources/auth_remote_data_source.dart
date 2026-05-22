@@ -52,6 +52,14 @@ class AuthRemoteDataSource {
     );
   }
 
+  Future<void> requestPasswordReset({required String email}) async {
+    await _dio.post<void>(
+      '/auth/password-reset/request',
+      data: {'email': email},
+      options: Options(validateStatus: (status) => status == 204),
+    );
+  }
+
   Future<Map<String, dynamic>> fetchCurrentUser(String token) async {
     final response = await _dio.get(
       '/users/me',

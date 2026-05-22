@@ -1,4 +1,5 @@
 import '../../../../core/network/auth_token_provider.dart';
+import '../entities/forgot_password_result.dart';
 import '../entities/login_result.dart';
 import '../entities/user_profile.dart';
 
@@ -9,6 +10,8 @@ abstract class AuthRepository implements AuthTokenProvider {
     String? verificationCode,
     String? challengeId,
   });
+
+  Future<ForgotPasswordResult> requestPasswordReset({required String email});
 
   Future<void> logout();
 

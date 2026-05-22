@@ -3,7 +3,9 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import '../../../../core/connectivity/connectivity_error.dart';
 import '../../../../core/localization/user_message.dart';
+import '../../domain/entities/forgot_password_result.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/entities/user_profile.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -76,6 +78,33 @@ class AuthRepositoryImpl implements AuthRepository {
       );
     } catch (e) {
       return LoginFailure(UserMessage.fromError(e));
+    }
+  }
+
+  @override
+  Future<ForgotPasswordResult> requestPasswordReset({
+    required String email,
+  }) async {
+    final trimmedEmail = email.trim();
+
+    try {
+      await _remote.requestPasswordReset(email: trimmedEmail);
+      return const ForgotPasswordSuccess();
+    } on DioException catch (error) {
+      if (ConnectivityError.isConnectivityFailure(error)) {
+        return ForgotPasswordFailure(
+          UserMessage.fromError(error),
+          cause: error,
+        );
+      }
+
+      if (error.response != null) {
+        return const ForgotPasswordSuccess();
+      }
+
+      return ForgotPasswordFailure(UserMessage.fromError(error), cause: error);
+    } catch (error) {
+      return ForgotPasswordFailure(UserMessage.fromError(error), cause: error);
     }
   }
 
