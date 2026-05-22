@@ -9,8 +9,12 @@ class StartupWarmupRemoteDataSource {
     : _dio = Dio(
         BaseOptions(
           baseUrl: ApiConfig.baseUrl,
-          connectTimeout: const Duration(seconds: 8),
-          receiveTimeout: const Duration(seconds: 12),
+          connectTimeout: Duration(
+            seconds: ApiConfig.isProduction ? 20 : 8,
+          ),
+          receiveTimeout: Duration(
+            seconds: ApiConfig.isProduction ? 30 : 12,
+          ),
         ),
       ),
       _appCheckDataSource = AppCheckRemoteDataSource();
@@ -26,11 +30,11 @@ class StartupWarmupRemoteDataSource {
     final effectiveRetryDelay = retryDelay ??
         (ApiConfig.isLocal
             ? const Duration(seconds: 2)
-            : const Duration(seconds: 3));
+            : const Duration(seconds: 4));
     final effectiveTimeout = timeout ??
         (ApiConfig.isLocal
             ? const Duration(seconds: 30)
-            : const Duration(seconds: 45));
+            : const Duration(seconds: 90));
     final deadline = DateTime.now().add(effectiveTimeout);
 
     while (DateTime.now().isBefore(deadline)) {
@@ -41,7 +45,9 @@ class StartupWarmupRemoteDataSource {
           return;
         }
       } on DioException catch (error) {
-        if (error.response != null && error.response!.statusCode! < 500) {
+        final status = error.response?.statusCode;
+        // Serwer odpowiedział (nawet 401/403) — backend żyje; logowanie może przejść dalej.
+        if (status != null && status < 500) {
           await _submitAppCheckOnce();
           return;
         }

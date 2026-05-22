@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../widgets/app_logo.dart';
 
-/// Pełnoekranowy komunikat o problemie z łącznością (wygląd jak reszta aplikacji).
 class ConnectivityProblemScreen extends StatefulWidget {
   const ConnectivityProblemScreen({
     super.key,

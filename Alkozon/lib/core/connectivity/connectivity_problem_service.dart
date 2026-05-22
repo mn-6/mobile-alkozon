@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../features/notifications/presentation/services/notification_service.dart';
+import '../config/api_config.dart';
 import '../di/injection_container.dart';
 import 'connectivity_problem_screen.dart';
 
-/// Globalny ekran problemu z łącznością (bez nakładek na istniejące widoki).
 class ConnectivityProblemService {
   ConnectivityProblemService._();
 
@@ -15,14 +15,20 @@ class ConnectivityProblemService {
   Future<void> Function()? _pendingRetry;
 
   Future<bool> probeServer({
-    Duration timeout = const Duration(seconds: 20),
+    Duration? timeout,
   }) async {
-    await InjectionContainer.I.waitForServerReadyUseCase(timeout: timeout);
+    final effectiveTimeout = timeout ??
+        (ApiConfig.isProduction
+            ? const Duration(seconds: 60)
+            : const Duration(seconds: 25));
+    await InjectionContainer.I.waitForServerReadyUseCase(
+      timeout: effectiveTimeout,
+    );
     return true;
   }
 
   Future<bool> refreshAndRetry({
-    Duration timeout = const Duration(seconds: 20),
+    Duration? timeout,
   }) async {
     try {
       await probeServer(timeout: timeout);

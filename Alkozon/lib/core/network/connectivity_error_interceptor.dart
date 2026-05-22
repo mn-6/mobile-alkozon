@@ -1,15 +1,13 @@
 import 'package:dio/dio.dart';
 
-import '../connectivity/connectivity_error.dart';
-import '../connectivity/connectivity_problem_service.dart';
-
-/// Przechwytuje błędy łączności z głównego klienta HTTP i pokazuje ekran problemu.
+/// Rezerwowany pod ewentualne logowanie błędów sieciowych.
+///
+/// Ekran „Problem z łącznością” otwieramy jawnie przez [ConnectivityFailureHandler],
+/// nie tutaj — automatyczne wyświetlanie przy każdym [DioException] blokowało logowanie
+/// (np. rejestracja tokenu FCM w tle tuż po starcie aplikacji).
 class ConnectivityErrorInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (ConnectivityError.isConnectivityFailure(err)) {
-      ConnectivityProblemService.instance.showIfNeeded();
-    }
     handler.next(err);
   }
 }
