@@ -22,6 +22,7 @@ class DeviceSecurityRepositoryImpl implements DeviceSecurityRepository {
     final isRealDevice = await SafeDevice.isRealDevice;
     final isMockLocation = await SafeDevice.isMockLocation;
     final isDevelopmentModeEnable = await SafeDevice.isDevelopmentModeEnable;
+    // final isUsbDebuggingEnabled = await SafeDevice.isUsbDebuggingEnabled;
 
     if (isJailBroken || !isRealDevice || isMockLocation) {
       debugPrint(
@@ -32,9 +33,15 @@ class DeviceSecurityRepositoryImpl implements DeviceSecurityRepository {
       );
     }
 
-    if (isDevelopmentModeEnable && kReleaseMode) {
-      terminateApp('Aktywne opcje deweloperskie nie są dozwolone.');
-    }
+    // Tymczasowo wyłączone — włącz ponownie przed produkcją.
+    // if (isDevelopmentModeEnable && kReleaseMode) {
+    //   terminateApp('Aktywne opcje deweloperskie nie są dozwolone.');
+    // }
+    // if (isUsbDebuggingEnabled && kReleaseMode) {
+    //   terminateApp(
+    //     'Wyłącz debugowanie USB w opcjach deweloperskich, aby korzystać z aplikacji.',
+    //   );
+    // }
 
     await _verifyApkSigningOrExit();
     await _setupScreenProtection();

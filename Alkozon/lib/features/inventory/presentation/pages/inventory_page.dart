@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
 import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/inventory/domain/entities/inventory_item.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
@@ -73,6 +74,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
           }
 
           if (snapshot.hasError) {
+            final connectivityBody =
+                ConnectivityFailureHandler.emptyBodyIfConnectivity(
+              snapshot.error,
+              retry: _reloadInventory,
+            );
+            if (connectivityBody != null) {
+              return connectivityBody;
+            }
+
             return RefreshIndicator(
               onRefresh: _reloadInventory,
               child: ListView(

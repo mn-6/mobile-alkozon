@@ -1,3 +1,3 @@
 abstract class StartupRepository {
-  Future<void> waitForServerReady();
+  Future<void> waitForServerReady({Duration? timeout});
 }

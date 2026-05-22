@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/connectivity/connectivity_failure_handler.dart';
+import '../../../../core/connectivity/connectivity_error.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/localization/user_message.dart';
 import '../../../../core/security/input_validators.dart';
@@ -154,9 +156,14 @@ class _LoginPageState extends State<LoginPage> {
         });
       case LoginFailure():
         await _loginAttemptLimiter.recordFailure();
-        setState(() {
-          _errorMessage = UserMessage.polish(result.message);
-        });
+        final failureMessage = UserMessage.polish(result.message);
+        if (ConnectivityError.isConnectivityMessage(failureMessage)) {
+          ConnectivityFailureHandler.report(failureMessage);
+        } else {
+          setState(() {
+            _errorMessage = failureMessage;
+          });
+        }
     }
 
     if (mounted) {

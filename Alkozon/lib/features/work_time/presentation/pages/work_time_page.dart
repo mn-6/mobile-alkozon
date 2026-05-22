@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
+import 'package:alkozon/core/connectivity/connectivity_error.dart';
 import 'package:alkozon/core/widgets/app_snackbar.dart';
 import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/work_time/presentation/controllers/work_timer_notifier.dart';
@@ -330,11 +332,18 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
                         Navigator.pop(modalContext);
 
                         if (!screenContext.mounted) return;
-                        AppSnackbar.show(
-                          screenContext,
-                          message: result.message,
-                          success: result.success,
-                        );
+                        if (!result.success &&
+                            ConnectivityError.isConnectivityMessage(
+                              result.message,
+                            )) {
+                          ConnectivityFailureHandler.report(result.message);
+                        } else {
+                          AppSnackbar.show(
+                            screenContext,
+                            message: result.message,
+                            success: result.success,
+                          );
+                        }
 
                         if (!mounted) return;
                         setState(() {
@@ -405,6 +414,14 @@ class _WorkTimeScreenState extends State<WorkTimeScreen>
     }
 
     if (timerService.historyError != null && history.isEmpty) {
+      final connectivityBody = ConnectivityFailureHandler.emptyBodyIfConnectivity(
+        timerService.historyError,
+        retry: timerService.refreshHistoryFromBackend,
+      );
+      if (connectivityBody != null) {
+        return connectivityBody;
+      }
+
       return RefreshIndicator(
         onRefresh: timerService.refreshHistoryFromBackend,
         child: ListView(

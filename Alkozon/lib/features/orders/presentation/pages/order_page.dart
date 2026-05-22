@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:alkozon/features/orders_realtime/data/services/order_realtime_service.dart';
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
 import 'package:alkozon/core/widgets/app_status_panel.dart';
 import 'package:alkozon/features/orders/domain/entities/order.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
@@ -352,6 +353,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
           }
 
           if (snapshot.hasError) {
+            final connectivityBody = ConnectivityFailureHandler.emptyBodyIfConnectivity(
+              snapshot.error,
+              retry: _reload,
+            );
+            if (connectivityBody != null) {
+              return connectivityBody;
+            }
+
             return RefreshIndicator(
               onRefresh: _reload,
               child: ListView(

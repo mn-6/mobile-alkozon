@@ -7,5 +7,6 @@ class StartupRepositoryImpl implements StartupRepository {
   final StartupWarmupRemoteDataSource _remoteDataSource;
 
   @override
-  Future<void> waitForServerReady() => _remoteDataSource.waitForServerReady();
+  Future<void> waitForServerReady({Duration? timeout}) =>
+      _remoteDataSource.waitForServerReady(timeout: timeout);
 }

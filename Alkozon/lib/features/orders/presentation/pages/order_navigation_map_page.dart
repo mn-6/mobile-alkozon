@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/core/localization/user_message.dart';
 import 'package:alkozon/core/widgets/app_snackbar.dart';
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
 import 'package:alkozon/core/widgets/app_status_panel.dart';
 class OrderNavigationMapScreen extends StatefulWidget {
   const OrderNavigationMapScreen({
@@ -91,6 +92,13 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      if (ConnectivityFailureHandler.report(e, retry: _loadRoute)) {
+        setState(() {
+          _error = null;
+          _loading = true;
+        });
+        return;
+      }
       setState(() {
         _error = UserMessage.fromError(e);
         _loading = false;
@@ -161,6 +169,9 @@ class _OrderNavigationMapScreenState extends State<OrderNavigationMapScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      if (ConnectivityFailureHandler.report(e)) {
+        return;
+      }
       AppSnackbar.show(
         context,
         message: 'Nie udało się oznaczyć dostawy: ${UserMessage.fromError(e)}',

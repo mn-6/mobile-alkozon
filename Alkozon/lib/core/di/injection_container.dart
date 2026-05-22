@@ -30,6 +30,7 @@ import '../../features/work_time/data/datasources/work_log_remote_data_source.da
 import '../../features/work_time/data/repositories/work_log_repository_impl.dart';
 import '../../features/work_time/domain/repositories/work_log_repository.dart';
 import '../network/auth_token_refresh_interceptor.dart';
+import '../network/connectivity_error_interceptor.dart';
 import '../network/dio_factory.dart';
 import '../security/login_attempt_limiter.dart';
 
@@ -78,6 +79,7 @@ class InjectionContainer {
       onLogout: orderRealtimeService.disconnect,
     );
     dio.interceptors.add(AuthTokenRefreshInterceptor(authRepository));
+    dio.interceptors.add(ConnectivityErrorInterceptor());
 
     final accessToken = await authLocalDataSource.readToken();
     if (accessToken != null && accessToken.isNotEmpty) {

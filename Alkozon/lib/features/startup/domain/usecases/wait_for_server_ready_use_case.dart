@@ -5,5 +5,6 @@ class WaitForServerReadyUseCase {
 
   final StartupRepository _repository;
 
-  Future<void> call() => _repository.waitForServerReady();
+  Future<void> call({Duration? timeout}) =>
+      _repository.waitForServerReady(timeout: timeout);
 }

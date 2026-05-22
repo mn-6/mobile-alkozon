@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
 import 'package:alkozon/core/widgets/app_snackbar.dart';
 import 'package:alkozon/features/orders/domain/entities/order.dart';
 import 'package:alkozon/core/widgets/horizontal_scroll_text.dart';
@@ -205,11 +206,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       Navigator.pop(context, updated);
     } catch (e) {
       if (!mounted) return;
-      AppSnackbar.show(
-        context,
-        message: 'Nie udało się zmienić statusu: ${UserMessage.fromError(e)}',
-        success: false,
-      );
+      if (!ConnectivityFailureHandler.report(e)) {
+        AppSnackbar.show(
+          context,
+          message:
+              'Nie udało się zmienić statusu: ${UserMessage.fromError(e)}',
+          success: false,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {

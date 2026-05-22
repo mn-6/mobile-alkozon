@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:alkozon/core/di/injection_container.dart';
 import 'package:alkozon/core/localization/user_message.dart';
+import 'package:alkozon/core/connectivity/connectivity_failure_handler.dart';
 import 'package:alkozon/core/widgets/app_snackbar.dart';
 import 'package:alkozon/features/inventory/domain/entities/inventory_item.dart';
 import 'package:alkozon/core/widgets/product_thumbnail.dart';
@@ -120,11 +121,13 @@ class _InventoryDetailScreenState extends State<InventoryDetailScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      AppSnackbar.show(
-        context,
-        message: 'Nie udało się zmienić stanu: ${UserMessage.fromError(e)}',
-        success: false,
-      );
+      if (!ConnectivityFailureHandler.report(e)) {
+        AppSnackbar.show(
+          context,
+          message: 'Nie udało się zmienić stanu: ${UserMessage.fromError(e)}',
+          success: false,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
